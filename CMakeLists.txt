@@ -18,6 +18,8 @@ elseif (CMAKE_BUILD_TYPE MATCHES Release)
     add_library(glad ext/glad/release/src/glad.c)
 endif ()
 
+include_directories(ext/std)
+
 add_executable(rtd src/main.c)
 
 target_link_libraries(rtd glad mingw32 SDL2main SDL2)
