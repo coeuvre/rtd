@@ -22,4 +22,8 @@ include_directories(libs/stb)
 
 add_executable(rtd src/main.c)
 
-target_link_libraries(rtd glad mingw32 SDL2main SDL2)
+if (MINGW)
+    target_link_libraries(rtd glad mingw32 SDL2main SDL2)
+elseif(WIN32)
+    target_link_libraries(rtd glad SDL2main SDL2)
+endif()

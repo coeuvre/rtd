@@ -12,25 +12,23 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 
-const char *VERTEX_SHADER = R"(
-#version 330 core
+const char *VERTEX_SHADER =
+"#version 330 core\n"
+""
+"layout (location = 0) in vec3 pos;\n"
+""
+"void main() {\n"
+"    gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);\n"
+"}";
 
-layout (location = 0) in vec3 pos;
-
-void main() {
-    gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);
-}
-)";
-
-const char *FRAGMENT_SHADER = R"(
-#version 330 core
-
-out vec4 color;
-
-void main() {
-    color = vec4(1.0f, 0.5f, 0.2f, 1.0);
-}
-)";
+const char *FRAGMENT_SHADER =
+"#version 330 core\n"
+""
+"out vec4 color;\n"
+""
+"void main() {\n"
+"    color = vec4(1.0f, 0.5f, 0.2f, 1.0);\n"
+"}";
 
 #ifdef GLAD_DEBUG
 void pre_gl_call(const char *name, void *funcptr, int len_args, ...) {
@@ -103,7 +101,7 @@ typedef struct GameContext {
 } GameContext;
 
 typedef struct GameState {
-
+    int placeholder;
 } GameState;
 
 static int LoadFont(GameContext *context) {
@@ -264,7 +262,7 @@ static void WaitForNextFrame(GameContext *context) {
 }
 
 static int RunMainLoop(GameContext *context) {
-    GameState state = {};
+    GameState state = {0};
 
     context->is_running = 1;
 
@@ -281,7 +279,7 @@ static int RunMainLoop(GameContext *context) {
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
-    GameContext context = {};
+    GameContext context = {0};
 
     if (SetupGame(&context) != 0) {
         return 1;
