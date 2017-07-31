@@ -12,23 +12,13 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 
-const char *VERTEX_SHADER =
-"#version 330 core\n"
-""
-"layout (location = 0) in vec3 pos;\n"
-""
-"void main() {\n"
-"    gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);\n"
-"}";
+const char VERTEX_SHADER[] = {
+    #include "shaders/test.vert.gen"
+};
 
-const char *FRAGMENT_SHADER =
-"#version 330 core\n"
-""
-"out vec4 color;\n"
-""
-"void main() {\n"
-"    color = vec4(1.0f, 0.5f, 0.2f, 1.0);\n"
-"}";
+const char FRAGMENT_SHADER[] = {
+    #include "shaders/test.frag.gen"
+};
 
 #ifdef GLAD_DEBUG
 void pre_gl_call(const char *name, void *funcptr, int len_args, ...) {
