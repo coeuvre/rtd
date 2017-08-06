@@ -87,6 +87,7 @@ typedef struct GameContext {
     GLuint ftex;
     GLuint vao;
     GLuint vbo;
+    GLuint ebo;
     GLuint program;
 } GameContext;
 
@@ -186,27 +187,50 @@ static int SetupGame(GameContext *context) {
     }
 
     float vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        0.0f,  0.5f, 0.0f
+        // positions          // colors           // texture coords
+        0.5f, 0.5f, 0.0f,     1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
+        0.5f, -0.5f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom right
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+        -0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top left
+    };
+
+    unsigned int indices[] = {  // note that we start from 0!
+        0, 1, 3,   // first triangle
+        1, 2, 3    // second triangle
     };
 
     glGenVertexArrays(1, &context->vao);
     glGenBuffers(1, &context->vbo);
+    glGenBuffers(1, &context->ebo);
 
     glBindVertexArray(context->vao);
     glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+                 GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
                           (void *)0);
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                          (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                          (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
     glBindVertexArray(0);
 
     context->program = CompileProgram(VERTEX_SHADER, FRAGMENT_SHADER);
     if (!context->program) {
         return 1;
     }
+    glUseProgram(context->program);
+    glUniform1i(glGetUniformLocation(context->program, "texture0"), 0);
     return 0;
 }
 
@@ -239,10 +263,11 @@ static void Update(GameContext *context, GameState *state) {
 static void Render(GameContext *context, GameState *state) {
     glClear(GL_COLOR_BUFFER_BIT);
 
+    glBindTexture(GL_TEXTURE_2D, context->ftex);
 
     glUseProgram(context->program);
     glBindVertexArray(context->vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 static void WaitForNextFrame(GameContext *context) {

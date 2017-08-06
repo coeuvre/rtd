@@ -19,7 +19,10 @@ int main(int argc, const char **argv) {
 
         for (size_t i = 0; i < nread; ++i) {
             char c = read_buf[i];
-            fprintf(fout, "0x%X, ", c);
+            fprintf(fout, "0x%02X, ", c);
+            if (i % 13 == 12) {
+                fprintf(fout, "\n");
+            }
         }
     }
 

@@ -19,7 +19,7 @@ elseif (CMAKE_BUILD_TYPE MATCHES Release)
 endif ()
 
 
-add_executable(gen_shaders src/gen_shaders.c)
+add_executable(char2hex src/tools/char2hex.c)
 
 set(shaders)
 file(GLOB shaders_source "src/shaders/*")
@@ -28,8 +28,8 @@ foreach(input ${shaders_source})
     get_filename_component(filename ${input} NAME)
     set(output "${CMAKE_BINARY_DIR}/shaders/${filename}.gen")
     add_custom_command(OUTPUT ${output}
-                       COMMAND gen_shaders ${output} ${input}
-                       DEPENDS gen_shaders ${input})
+                       DEPENDS char2hex ${input}
+                       COMMAND char2hex ${output} ${input})
     list(APPEND shaders ${output})
 endforeach ()
 
