@@ -40,8 +40,17 @@ include_directories(libs/stb)
 
 add_executable(rtd src/main.c ${shaders})
 
+set(libs glad)
+
 if (MINGW)
-    target_link_libraries(rtd glad mingw32 SDL2main SDL2)
-elseif(WIN32)
-    target_link_libraries(rtd glad SDL2main SDL2)
-endif()
+    list(APPEND libs mingw32 SDL2main SDL2)
+    add_definitions(-DRTD_WIN32)
+elseif (WIN32)
+    list(APPEND libs SDL2main SDL2)
+    add_definitions(-DRTD_WIN32)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND libs SDL2)
+    add_definitions(-DRTD_MACOS)
+endif ()
+
+target_link_libraries(rtd ${libs})

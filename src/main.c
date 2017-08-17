@@ -20,12 +20,6 @@ const char FRAGMENT_SHADER[] = {
     #include "shaders/test.frag.gen"
 };
 
-#ifdef GLAD_DEBUG
-void pre_gl_call(const char *name, void *funcptr, int len_args, ...) {
-    printf("Calling: %s (%d arguments)\n", name, len_args);
-}
-#endif
-
 static GLuint CompileShader(GLenum type, const char *source) {
     GLuint result = glCreateShader(type);
 
@@ -96,7 +90,13 @@ typedef struct GameState {
 } GameState;
 
 static int LoadFont(GameContext *context) {
-    FILE *font = fopen("C:/Windows/Fonts/Arial.ttf", "rb");
+#ifdef RTD_WIN32
+    char *path = "C:/Windows/Fonts/Arial.ttf";
+#else
+    char *path = "/Library/Fonts/Arial.ttf";
+#endif
+
+    FILE *font = fopen(path, "rb");
     if (!font) {
         printf("Failed to load font file\n");
         return 1;
@@ -167,8 +167,6 @@ static int SetupGame(GameContext *context) {
     }
 
 #ifdef GLAD_DEBUG
-    glad_set_pre_callback(pre_gl_call);
-    glad_debug_glClear = glad_glClear;
     printf("Glad Debug Mode\n");
 #endif
 
