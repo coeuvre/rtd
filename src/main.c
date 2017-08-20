@@ -5,6 +5,8 @@
 
 #include <glad/glad.h>
 
+#include "renderer.h"
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include <stb_truetype.h>
@@ -70,7 +72,9 @@ static GLuint CompileProgram(const char *vertex_shader_source,
 
 typedef struct GameContext {
     SDL_Window *window;
-    SDL_GLContext glcontext;
+    SDL_GLContext *glcontext;
+    Renderer *renderer;
+
     int is_running;
 
     int num_bakedchars;
@@ -103,7 +107,7 @@ static int LoadFont(GameContext *context) {
     size_t size = (size_t)ftell(font);
     fseek(font, 0, SEEK_SET);
 
-    unsigned char *buf = (unsigned char *)malloc(size);
+    unsigned char *buf = malloc(size);
     fread(buf, 1, size, font);
 
 #define BITMAP_WIDTH 512
@@ -111,7 +115,7 @@ static int LoadFont(GameContext *context) {
     unsigned char bitmap[BITMAP_WIDTH * BITMAP_HEIGHT];
     int first_chars = 32;
     context->num_bakedchars = 95; // ASCII 32..126
-    context->bakedchars = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * context->num_bakedchars);
+    context->bakedchars = malloc(sizeof(stbtt_bakedchar) * context->num_bakedchars);
 
     if (stbtt_BakeFontBitmap(buf, 0, 32.0f, bitmap, BITMAP_WIDTH, BITMAP_HEIGHT,
                              first_chars, context->num_bakedchars,
@@ -131,20 +135,18 @@ static int LoadFont(GameContext *context) {
     return 0;
 }
 
-static int SetupGame(GameContext *context) {
-    SDL_Init(SDL_INIT_VIDEO);
-
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                        SDL_GL_CONTEXT_PROFILE_CORE);
+static int InitWindowAndOpenGL(GameContext *context) {
+    // Use this function to set an OpenGL window attribute before window creation.
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     context->window = SDL_CreateWindow(
-        "RTD",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH, WINDOW_HEIGHT,
-        SDL_WINDOW_OPENGL
+            "RTD",
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            WINDOW_WIDTH, WINDOW_HEIGHT,
+            SDL_WINDOW_OPENGL
     );
 
     if (!context->window) {
@@ -172,8 +174,19 @@ static int SetupGame(GameContext *context) {
 
     printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+    return 0;
+}
 
+static int SetupGame(GameContext *context) {
+    SDL_Init(SDL_INIT_VIDEO);
+
+    if (InitWindowAndOpenGL(context) != 0) {
+        return 1;
+    }
+
+    context->renderer = InitRenderer(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+#if 0
     if (LoadFont(context) != 0) {
         return 1;
     }
@@ -220,6 +233,7 @@ static int SetupGame(GameContext *context) {
     }
     glUseProgram(context->program);
     glUniform1i(glGetUniformLocation(context->program, "texture0"), 0);
+#endif
     return 0;
 }
 
@@ -250,13 +264,12 @@ static void Update(GameContext *context, GameState *state) {
 }
 
 static void Render(GameContext *context, GameState *state) {
-    glClear(GL_COLOR_BUFFER_BIT);
+    ClearScreen(context->renderer, 1.0f, 1.0f, 1.0f, 1.0f);
+    // glBindTexture(GL_TEXTURE_2D, context->ftex);
 
-    glBindTexture(GL_TEXTURE_2D, context->ftex);
-
-    glUseProgram(context->program);
-    glBindVertexArray(context->vao);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    // glUseProgram(context->program);
+    // glBindVertexArray(context->vao);
+    // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 static void WaitForNextFrame(GameContext *context) {
