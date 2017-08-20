@@ -38,7 +38,7 @@ include_directories(${CMAKE_BINARY_DIR})
 
 include_directories(libs/stb)
 
-add_executable(rtd src/main.c ${shaders})
+add_executable(rtd src/main.c src/cgmath.c ${shaders})
 
 set(libs glad)
 

@@ -44,11 +44,9 @@ static GLuint CompileProgram(const char *vertex_shader_source,
                              const char *fragment_shader_source) {
     GLuint result = 0;
 
-    GLuint vertex_shader = CompileShader(GL_VERTEX_SHADER,
-                                         vertex_shader_source);
+    GLuint vertex_shader = CompileShader(GL_VERTEX_SHADER, vertex_shader_source);
     if (vertex_shader) {
-        GLuint fragment_shader = CompileShader(GL_FRAGMENT_SHADER,
-                                               fragment_shader_source);
+        GLuint fragment_shader = CompileShader(GL_FRAGMENT_SHADER, fragment_shader_source);
         if (fragment_shader) {
             result = glCreateProgram();
             glAttachShader(result, vertex_shader);
@@ -113,9 +111,7 @@ static int LoadFont(GameContext *context) {
     unsigned char bitmap[BITMAP_WIDTH * BITMAP_HEIGHT];
     int first_chars = 32;
     context->num_bakedchars = 95; // ASCII 32..126
-    context->bakedchars = (stbtt_bakedchar *)malloc(
-        sizeof(stbtt_bakedchar) * context->num_bakedchars
-    );
+    context->bakedchars = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * context->num_bakedchars);
 
     if (stbtt_BakeFontBitmap(buf, 0, 32.0f, bitmap, BITMAP_WIDTH, BITMAP_HEIGHT,
                              first_chars, context->num_bakedchars,
@@ -130,8 +126,7 @@ static int LoadFont(GameContext *context) {
     glGenTextures(1, &context->ftex);
     glBindTexture(GL_TEXTURE_2D, context->ftex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, BITMAP_WIDTH, BITMAP_HEIGHT, 0,
-                 GL_RED, GL_UNSIGNED_BYTE, bitmap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, BITMAP_WIDTH, BITMAP_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
 
     return 0;
 }
@@ -175,8 +170,7 @@ static int SetupGame(GameContext *context) {
         return 1;
     }
 
-    printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION),
-           glGetString(GL_SHADING_LANGUAGE_VERSION));
+    printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -209,16 +203,13 @@ static int SetupGame(GameContext *context) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
                  GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                          (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                          (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                          (void *)(6 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
