@@ -11,22 +11,21 @@ endif ()
 message(STATUS "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
-    include_directories(libs/glad/debug/include)
-    add_library(glad libs/glad/debug/src/glad.c)
+    include_directories(lib/glad/debug/include)
+    add_library(glad lib/glad/debug/src/glad.c)
 elseif (CMAKE_BUILD_TYPE MATCHES Release)
-    include_directories(libs/glad/release/include)
-    add_library(glad libs/glad/release/src/glad.c)
+    include_directories(lib/glad/release/include)
+    add_library(glad lib/glad/release/src/glad.c)
 endif ()
 
 
 add_executable(char2hex src/tools/char2hex.c)
 
 set(shaders)
-file(GLOB shaders_source "src/shaders/*")
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
+file(GLOB shaders_source "${CMAKE_SOURCE_DIR}/src/shaders/*")
 foreach(input ${shaders_source})
     get_filename_component(filename ${input} NAME)
-    set(output "${CMAKE_BINARY_DIR}/shaders/${filename}.gen")
+    set(output "${CMAKE_SOURCE_DIR}/src/shaders/${filename}.gen")
     add_custom_command(OUTPUT ${output}
                        DEPENDS char2hex ${input}
                        COMMAND char2hex ${output} ${input})
@@ -36,7 +35,7 @@ endforeach ()
 include_directories(${CMAKE_BINARY_DIR})
 
 
-include_directories(libs/stb)
+include_directories(lib/stb)
 
 add_executable(rtd src/main.c src/cgmath.c src/renderer.c ${shaders})
 
