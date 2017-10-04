@@ -5,11 +5,13 @@
 
 #include <glad/glad.h>
 
-#include "renderer.h"
-
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include <stb_truetype.h>
+
+#define STBI_ONLY_PNG
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
@@ -22,7 +24,7 @@ const char FRAGMENT_SHADER[] = {
     #include "shaders/test.frag.gen"
 };
 
-static GLuint CompileShader(GLenum type, const char *source) {
+static GLuint CompileGLShader(GLenum type, const char *source) {
     GLuint result = glCreateShader(type);
 
     glShaderSource(result, 1, &source, 0);
@@ -32,37 +34,34 @@ static GLuint CompileShader(GLenum type, const char *source) {
     GLint success;
     glGetShaderiv(result, GL_COMPILE_STATUS, &success);
     if (success != GL_TRUE) {
-        result = 0;
-
         char buf[512];
         glGetShaderInfoLog(result, sizeof(buf), 0, buf);
         printf("Failed to compile shader: %s\n", buf);
+        result = 0;
     }
 
     return result;
 }
 
-static GLuint CompileProgram(const char *vertex_shader_source,
-                             const char *fragment_shader_source) {
+static GLuint CompileGLProgram(const char *vss, const char *fss) {
     GLuint result = 0;
 
-    GLuint vertex_shader = CompileShader(GL_VERTEX_SHADER, vertex_shader_source);
-    if (vertex_shader) {
-        GLuint fragment_shader = CompileShader(GL_FRAGMENT_SHADER, fragment_shader_source);
-        if (fragment_shader) {
+    GLuint vs = CompileGLShader(GL_VERTEX_SHADER, vss);
+    if (vs) {
+        GLuint fs = CompileGLShader(GL_FRAGMENT_SHADER, fss);
+        if (fs) {
             result = glCreateProgram();
-            glAttachShader(result, vertex_shader);
-            glAttachShader(result, fragment_shader);
+            glAttachShader(result, vs);
+            glAttachShader(result, fs);
             glLinkProgram(result);
 
             GLint success;
             glGetProgramiv(result, GL_LINK_STATUS, &success);
             if (success != GL_TRUE) {
-                result = 0;
-
                 char buf[512];
                 glGetProgramInfoLog(result, sizeof(buf), 0, buf);
                 printf("Failed to link program: %s\n", buf);
+                result = 0;
             }
         }
     }
@@ -70,21 +69,60 @@ static GLuint CompileProgram(const char *vertex_shader_source,
     return result;
 }
 
-typedef struct GameContext {
-    SDL_Window *window;
-    SDL_GLContext *glcontext;
-    Renderer *renderer;
+typedef struct Image {
+    const char *filename;
+    unsigned char *data;
+    int width;
+    int height;
+    int comp;
+} Image;
 
-    int is_running;
+static int LoadImage(Image *image, const char *filename) {
+    image->filename = filename;
+    image->data = stbi_load(filename, &image->width, &image->height, &image->comp, 0);
+    if (image->data != NULL) {
+        return 0;
+    } else {
+        printf("Failed to load image %s", filename);
+        return 1;
+    }
+}
 
-    int num_bakedchars;
-    stbtt_bakedchar *bakedchars;
+static void UploadImageToGPU(Image *image, GLuint *tex) {
+    glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+                 image->width, image->height,
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+}
 
-    GLuint ftex;
+typedef struct VertexAttrib {
+    float pos[3];
+    float color[3];
+    float texCoord[2];
+} VertexAttrib;
+
+typedef struct RenderContext {
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
     GLuint program;
+} RenderContext;
+
+typedef struct GameContext {
+    SDL_Window *window;
+    SDL_GLContext *glContext;
+
+    int isRunning;
+
+    int numBakedchars;
+    stbtt_bakedchar *bakedchars;
+
+    GLuint texBackground;
+    GLuint ftex;
+
+    RenderContext renderContext;
 } GameContext;
 
 typedef struct GameState {
@@ -114,11 +152,11 @@ static int LoadFont(GameContext *context) {
 #define BITMAP_HEIGHT 512
     unsigned char bitmap[BITMAP_WIDTH * BITMAP_HEIGHT];
     int first_chars = 32;
-    context->num_bakedchars = 95; // ASCII 32..126
-    context->bakedchars = malloc(sizeof(stbtt_bakedchar) * context->num_bakedchars);
+    context->numBakedchars = 95; // ASCII 32..126
+    context->bakedchars = malloc(sizeof(stbtt_bakedchar) * context->numBakedchars);
 
     if (stbtt_BakeFontBitmap(buf, 0, 32.0f, bitmap, BITMAP_WIDTH, BITMAP_HEIGHT,
-                             first_chars, context->num_bakedchars,
+                             first_chars, context->numBakedchars,
                              context->bakedchars) <= 0) {
         printf("Failed to bake font bitmap\n");
         return 1;
@@ -135,7 +173,7 @@ static int LoadFont(GameContext *context) {
     return 0;
 }
 
-static int InitWindowAndOpenGL(GameContext *context) {
+static int SetupWindowAndOpenGL(GameContext *context) {
     // Use this function to set an OpenGL window attribute before window creation.
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -143,18 +181,15 @@ static int InitWindowAndOpenGL(GameContext *context) {
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     context->window = SDL_CreateWindow(
-            "RTD",
-            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            WINDOW_WIDTH, WINDOW_HEIGHT,
-            SDL_WINDOW_OPENGL
-    );
+        "RTD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
 
     if (!context->window) {
         printf("Failed to create SDL window: %s\n", SDL_GetError());
         return 1;
     }
 
-    context->glcontext = SDL_GL_CreateContext(context->window);
+    context->glContext = SDL_GL_CreateContext(context->window);
 
     SDL_GL_SetSwapInterval(1);
 
@@ -177,44 +212,24 @@ static int InitWindowAndOpenGL(GameContext *context) {
     return 0;
 }
 
-static int SetupGame(GameContext *context) {
-    SDL_Init(SDL_INIT_VIDEO);
+static void DestroyImage(Image *image) {
+    stbi_image_free(image->data);
+}
 
-    if (InitWindowAndOpenGL(context) != 0) {
-        return 1;
-    }
+static int SetupRenderContext(RenderContext *context, int width, int height) {
+    glViewport(0, 0, width, height);
 
-    context->renderer = InitRenderer(WINDOW_WIDTH, WINDOW_HEIGHT);
-
-#if 0
-    if (LoadFont(context) != 0) {
-        return 1;
-    }
-
-    float vertices[] = {
-        // positions          // colors           // texture coords
-        0.5f, 0.5f, 0.0f,     1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-        0.5f, -0.5f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom right
-        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
-        -0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top left
-    };
-
-    unsigned int indices[] = {  // note that we start from 0!
-        0, 1, 3,   // first triangle
-        1, 2, 3    // second triangle
-    };
-
+    // Setup VAO
     glGenVertexArrays(1, &context->vao);
     glGenBuffers(1, &context->vbo);
     glGenBuffers(1, &context->ebo);
 
     glBindVertexArray(context->vao);
     glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+//    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
-                 GL_STATIC_DRAW);
+//    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
@@ -227,13 +242,72 @@ static int SetupGame(GameContext *context) {
 
     glBindVertexArray(0);
 
-    context->program = CompileProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+    // Compile Program
+    context->program = CompileGLProgram(VERTEX_SHADER, FRAGMENT_SHADER);
     if (!context->program) {
         return 1;
     }
     glUseProgram(context->program);
     glUniform1i(glGetUniformLocation(context->program, "texture0"), 0);
-#endif
+
+    return 0;
+}
+
+static int LoadTexture(GLuint *tex, const char *filename) {
+    Image image;
+    if (LoadImage(&image, filename) != 0) {
+        return 1;
+    }
+    UploadImageToGPU(&image, tex);
+    DestroyImage(&image);
+    return 0;
+}
+
+static void drawTexture(RenderContext *context, GLuint tex) {
+    VertexAttrib vertices[] = {
+        // positions          // colors           // texture coords
+        0.5f, 0.5f, 0.0f,     1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
+        0.5f, -0.5f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom right
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+        -0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top left
+    };
+
+    unsigned int indices[] = {  // note that we start from 0!
+        0, 1, 3,   // first triangle
+        1, 2, 3    // second triangle
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glUseProgram(context->program);
+    glBindVertexArray(context->vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
+static int SetupGame(GameContext *context) {
+    SDL_Init(SDL_INIT_VIDEO);
+
+    if (SetupWindowAndOpenGL(context) != 0) {
+        return 1;
+    }
+
+    if (SetupRenderContext(&context->renderContext, WINDOW_WIDTH, WINDOW_HEIGHT) != 0) {
+        return 1;
+    }
+
+    LoadTexture(&context->texBackground, "./assets/scene1.png");
+
+    if (LoadFont(context) != 0) {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -243,13 +317,13 @@ static void ProcessSystemEvent(GameContext *context) {
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT: {
-                context->is_running = 0;
+                context->isRunning = 0;
                 break;
             }
 
             case SDL_KEYDOWN: {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    context->is_running = 0;
+                    context->isRunning = 0;
                 }
 
                 break;
@@ -264,12 +338,10 @@ static void Update(GameContext *context, GameState *state) {
 }
 
 static void Render(GameContext *context, GameState *state) {
-    ClearScreen(context->renderer, 1.0f, 1.0f, 1.0f, 1.0f);
-    // glBindTexture(GL_TEXTURE_2D, context->ftex);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-    // glUseProgram(context->program);
-    // glBindVertexArray(context->vao);
-    // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    drawTexture(&context->renderContext, context->texBackground);
 }
 
 static void WaitForNextFrame(GameContext *context) {
@@ -281,9 +353,9 @@ static void WaitForNextFrame(GameContext *context) {
 static int RunMainLoop(GameContext *context) {
     GameState state = {0};
 
-    context->is_running = 1;
+    context->isRunning = 1;
 
-    while (context->is_running) {
+    while (context->isRunning) {
         ProcessSystemEvent(context);
         Update(context, &state);
         Render(context, &state);
