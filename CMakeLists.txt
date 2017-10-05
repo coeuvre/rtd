@@ -27,22 +27,20 @@ add_executable(char2hex src/tools/char2hex.c)
 # Compile shaders
 set(shaders)
 set(shaders_source
-    test.frag
-    test.vert)
-foreach(shader_source ${shaders_source})
-    set(input ${CMAKE_SOURCE_DIR}/src/shaders/${shader_source})
-    get_filename_component(filename ${input} NAME)
-    set(output ${CMAKE_SOURCE_DIR}/src/shaders/${filename}.gen)
+        src/shaders/test.frag
+        src/shaders/test.vert)
+foreach (shader_source ${shaders_source})
+    set(input ${CMAKE_SOURCE_DIR}/${shader_source})
+    set(output ${input}.gen)
     add_custom_command(OUTPUT ${output}
-                       DEPENDS char2hex ${input}
-                       COMMAND char2hex ${output} ${input})
+            DEPENDS char2hex ${input}
+            COMMAND char2hex ${output} ${input})
     list(APPEND shaders ${output})
 endforeach ()
 
 # Compile rtd
 add_executable(rtd
-    src/main.c
-    src/cgmath.c
+        src/main.c
         ${shaders})
 
 set(libs glad)
