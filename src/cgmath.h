@@ -82,7 +82,7 @@ static inline V2 MakeV2(F x, F y) {
 }
 
 static inline V2 ZeroV2(void) {
-    return { 0.0f, 0.0f };
+    return MakeV2(0.0f, 0.0f);
 }
 
 static inline V2 NegV2(V2 v) {
@@ -207,6 +207,21 @@ static inline int IsV2Equal(V2 a, V2 b) {
     return result;
 }
 
+// 2D Bounding Box
+typedef struct BBox2 {
+    V2 min;
+    V2 max;
+} BBox2;
+
+
+static inline BBox2 MakeBBox(V2 min, V2 max) {
+    BBox2 result;
+    result.min = min;
+    result.max = max;
+    return result;
+}
+
+
 //
 // 2D Linear System
 //
@@ -235,12 +250,13 @@ typedef union {
     //     | b d y | or | x y o |
     //     | 0 0 1 |    | x y o |
     //
-    // This is matrix is used to multiply by column vector:
+    // This matrix is used to multiply by column vector:
     //
     //     | a c x |   | x |
     //     | b d y | * | y |
     //     | 0 0 1 |   | 1 |
     //
+    // This matrix use column-major order to store elements
 
     struct {
         F a; F b;
@@ -354,27 +370,35 @@ static inline V2 GetT2Scale(T2 t) {
 }
 
 
-typedef union GLM3 {
+typedef union GLM4 {
     struct {
-        F m00; F m10; F m20;
-        F m01; F m11; F m21;
-        F m02; F m12; F m22;
+        F m00; F m10; F m20; F m30;
+        F m01; F m11; F m21; F m31;
+        F m02; F m12; F m22; F m32;
+        F m03; F m13; F m23; F m33;
     };
 
     F m[9];
-} GLM3;
+} GLM4;
 
-static inline GLM3 MakeGLM3FromT2(T2 t) {
-    GLM3 result;
+static inline GLM4 MakeGLM3FromT2(T2 t) {
+    GLM4 result;
     result.m00 = t.m00;
     result.m10 = t.m10;
     result.m20 = 0.0f;
+    result.m30 = 0.0f;
     result.m01 = t.m01;
     result.m11 = t.m11;
     result.m21 = 0.0f;
-    result.m02 = t.m02;
-    result.m12 = t.m12;
+    result.m31 = 0.0f;
+    result.m02 = 0.0f;
+    result.m12 = 0.0f;
     result.m22 = 1.0f;
+    result.m32 = 0.0f;
+    result.m03 = t.m02;
+    result.m13 = t.m12;
+    result.m23 = 0.0f;
+    result.m33 = 1.0f;
     return result;
 }
 

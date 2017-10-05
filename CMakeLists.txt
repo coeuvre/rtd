@@ -39,8 +39,10 @@ foreach (shader_source ${shaders_source})
 endforeach ()
 
 # Compile rtd
+FILE (GLOB_RECURSE clion_all_headers ${CMAKE_SOURCE_DIR}/src/*.h)
 add_executable(rtd
         src/main.c
+        ${clion_all_headers}
         ${shaders})
 
 set(libs glad)

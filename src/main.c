@@ -16,6 +16,8 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 
+#include "cgmath.h"
+
 const char VERTEX_SHADER[] = {
     #include "shaders/test.vert.gen"
 };
@@ -77,6 +79,12 @@ typedef struct Image {
     int comp;
 } Image;
 
+typedef struct Texture {
+    GLuint id;
+    int width;
+    int height;
+} Texture;
+
 static int LoadImage(Image *image, const char *filename) {
     image->filename = filename;
     image->data = stbi_load(filename, &image->width, &image->height, &image->comp, 0);
@@ -89,25 +97,40 @@ static int LoadImage(Image *image, const char *filename) {
 }
 
 static void UploadImageToGPU(Image *image, GLuint *tex) {
+    size_t rowLength = (size_t) image->comp * (size_t) image->width;
+    void *data = malloc(image->height * rowLength);
+
+    unsigned char *dst = data;
+    unsigned char *src = image->data + (image->height - 1) * rowLength;
+
+    for (int y = image->height - 1; y >= 0; --y) {
+        memcpy(dst, src, rowLength);
+        dst += rowLength;
+        src -= rowLength;
+    }
+
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
                  image->width, image->height,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+    free(data);
 }
 
 typedef struct VertexAttrib {
-    float pos[3];
-    float color[3];
-    float texCoord[2];
+    F pos[3];
+    F texCoord[2];
 } VertexAttrib;
 
 typedef struct RenderContext {
+    T2 projection;
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
     GLuint program;
+    GLint MVPLocation;
 } RenderContext;
 
 typedef struct GameContext {
@@ -119,7 +142,7 @@ typedef struct GameContext {
     int numBakedchars;
     stbtt_bakedchar *bakedchars;
 
-    GLuint texBackground;
+    Texture texBackground;
     GLuint ftex;
 
     RenderContext renderContext;
@@ -217,6 +240,9 @@ static void DestroyImage(Image *image) {
 }
 
 static int SetupRenderContext(RenderContext *context, int width, int height) {
+    context->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
+                                MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
+
     glViewport(0, 0, width, height);
 
     // Setup VAO
@@ -231,14 +257,11 @@ static int SetupRenderContext(RenderContext *context, int width, int height) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
 //    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) 0);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, texCoord));
     glEnableVertexAttribArray(1);
-
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
-    glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
 
@@ -249,27 +272,33 @@ static int SetupRenderContext(RenderContext *context, int width, int height) {
     }
     glUseProgram(context->program);
     glUniform1i(glGetUniformLocation(context->program, "texture0"), 0);
+    context->MVPLocation = glGetUniformLocation(context->program, "MVP");
 
     return 0;
 }
 
-static int LoadTexture(GLuint *tex, const char *filename) {
+static int LoadTexture(Texture *tex, const char *filename) {
     Image image;
+
     if (LoadImage(&image, filename) != 0) {
         return 1;
     }
-    UploadImageToGPU(&image, tex);
+
+    UploadImageToGPU(&image, &tex->id);
+    tex->width = image.width;
+    tex->height = image.height;
+
     DestroyImage(&image);
+
     return 0;
 }
 
-static void drawTexture(RenderContext *context, GLuint tex) {
+static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex) {
     VertexAttrib vertices[] = {
-        // positions          // colors           // texture coords
-        0.5f, 0.5f, 0.0f,     1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-        0.5f, -0.5f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom right
-        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
-        -0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top left
+        dstBBox.max.x, dstBBox.max.y, 0.0f, 1.0f, 1.0f,   // top right
+        dstBBox.max.x, dstBBox.min.y, 0.0f, 1.0f, 0.0f,   // bottom right
+        dstBBox.min.x, dstBBox.min.y, 0.0f, 0.0f, 0.0f,   // bottom left
+        dstBBox.min.x, dstBBox.max.y, 0.0f, 0.0f, 1.0f,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
@@ -284,9 +313,12 @@ static void drawTexture(RenderContext *context, GLuint tex) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
+    glBindTexture(GL_TEXTURE_2D, tex->id);
 
     glUseProgram(context->program);
+    GLM4 MVP = MakeGLM3FromT2(context->projection);
+    glUniformMatrix4fv(context->MVPLocation, 1, GL_FALSE, MVP.m);
+
     glBindVertexArray(context->vao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
@@ -341,7 +373,9 @@ static void Render(GameContext *context, GameState *state) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    drawTexture(&context->renderContext, context->texBackground);
+    drawTexture(&context->renderContext,
+                MakeBBox(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
+                &context->texBackground);
 }
 
 static void WaitForNextFrame(GameContext *context) {
