@@ -381,7 +381,7 @@ typedef union GLM4 {
     F m[9];
 } GLM4;
 
-static inline GLM4 MakeGLM3FromT2(T2 t) {
+static inline GLM4 MakeGLM4FromT2(T2 t) {
     GLM4 result;
     result.m00 = t.m00;
     result.m10 = t.m10;

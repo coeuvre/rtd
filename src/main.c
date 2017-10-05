@@ -316,7 +316,7 @@ static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex) {
     glBindTexture(GL_TEXTURE_2D, tex->id);
 
     glUseProgram(context->program);
-    GLM4 MVP = MakeGLM3FromT2(context->projection);
+    GLM4 MVP = MakeGLM4FromT2(context->projection);
     glUniformMatrix4fv(context->MVPLocation, 1, GL_FALSE, MVP.m);
 
     glBindVertexArray(context->vao);
