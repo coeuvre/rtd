@@ -13,8 +13,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
 
 #include "cgmath.h"
 
@@ -137,24 +137,23 @@ typedef struct RenderContext {
     GLint MVPLocation;
 } RenderContext;
 
+typedef struct GameState {
+    int isRunning;
+} GameState;
+
 typedef struct GameContext {
     SDL_Window *window;
     SDL_GLContext *glContext;
 
-    int isRunning;
+    RenderContext renderContext;
+    GameState gameState;
 
     int numBakedchars;
     stbtt_bakedchar *bakedchars;
 
     Texture texBackground;
     GLuint ftex;
-
-    RenderContext renderContext;
 } GameContext;
-
-typedef struct GameState {
-    int placeholder;
-} GameState;
 
 static int LoadFont(GameContext *context) {
 #ifdef RTD_WIN32
@@ -340,7 +339,7 @@ static int SetupGame(GameContext *context) {
         return 1;
     }
 
-    if (LoadTexture(&context->texBackground, "./assets/scene1.png") != 0) {
+    if (LoadTexture(&context->texBackground, "assets/scene1.png") != 0) {
         return 1;
     }
 
@@ -352,18 +351,20 @@ static int SetupGame(GameContext *context) {
 }
 
 static void ProcessSystemEvent(GameContext *context) {
+    GameState *state = &context->gameState;
+
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT: {
-                context->isRunning = 0;
+                state->isRunning = 0;
                 break;
             }
 
             case SDL_KEYDOWN: {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    context->isRunning = 0;
+                    state->isRunning = 0;
                 }
 
                 break;
@@ -374,10 +375,10 @@ static void ProcessSystemEvent(GameContext *context) {
     }
 }
 
-static void Update(GameContext *context, GameState *state) {
+static void Update(GameContext *context) {
 }
 
-static void Render(GameContext *context, GameState *state) {
+static void Render(GameContext *context) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -386,20 +387,18 @@ static void Render(GameContext *context, GameState *state) {
 }
 
 static void WaitForNextFrame(GameContext *context) {
-    (void)context;
-
     SDL_GL_SwapWindow(context->window);
 }
 
 static int RunMainLoop(GameContext *context) {
-    GameState state = {0};
+    GameState *state = &context->gameState;
 
-    context->isRunning = 1;
+    state->isRunning = 1;
 
-    while (context->isRunning) {
+    while (state->isRunning) {
         ProcessSystemEvent(context);
-        Update(context, &state);
-        Render(context, &state);
+        Update(context);
+        Render(context);
         WaitForNextFrame(context);
     }
 
