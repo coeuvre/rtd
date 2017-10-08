@@ -71,12 +71,24 @@ static GLuint CompileGLProgram(const char *vss, const char *fss) {
     return result;
 }
 
+typedef enum ImageSource {
+    IMAGE_SOURCE_FILE,
+    IMAGE_SOURCE_BITMAP,
+} ImageSource;
+
+typedef enum ImageChannel {
+    IMAGE_CHANNEL_RGBA,
+    IMAGE_CHANNEL_A,
+} ImageChannel;
+
 typedef struct Image {
-    const char *filename;
-    unsigned char *data;
+    ImageSource source;
+    ImageChannel channel;
+    const char *name;
     int width;
     int height;
-    int comp;
+    size_t stride;
+    unsigned char *data;
 } Image;
 
 typedef struct Texture {
@@ -91,36 +103,114 @@ static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
 }
 
 static int LoadImage(Image *image, const char *filename) {
-    image->filename = filename;
-    image->data = stbi_load(filename, &image->width, &image->height, &image->comp, 0);
+    image->source = IMAGE_SOURCE_FILE;
+    image->channel = IMAGE_CHANNEL_RGBA;
+    image->name = filename;
+    image->data = stbi_load(filename, &image->width, &image->height, NULL, 4);
+    image->stride = (size_t) image->width * 4;
     if (image->data == NULL) {
-        printf("Failed to load image %s", filename);
+        printf("Failed to load image %s\n", filename);
         return 1;
     }
     return 0;
 }
 
-static void UploadImageToGPU(Image *image, GLuint *tex) {
-    size_t rowLength = (size_t) image->comp * (size_t) image->width;
-    void *data = malloc(image->height * rowLength);
+static int LoadImageFromAlphaBitmap(Image *image, int width, int height, size_t stride, const unsigned char *data) {
+    if (stride < width) {
+        printf("Invalid bitmap data: stride < width\n");
+        return 1;
+    }
+    image->source = IMAGE_SOURCE_BITMAP;
+    image->channel = IMAGE_CHANNEL_A;
+    image->name = "ALPHA BITMAP";
+    image->width = width;
+    image->height = height;
+    image->stride = stride;
+    image->data = malloc(stride * height);
+    memcpy(image->data, data, stride * height);
 
-    unsigned char *dst = data;
-    unsigned char *src = image->data + (image->height - 1) * rowLength;
+    return 0;
+}
+
+static void DestroyImage(Image *image) {
+    switch (image->source) {
+        case IMAGE_SOURCE_FILE:
+            stbi_image_free(image->data);
+            break;
+        case IMAGE_SOURCE_BITMAP:
+            free(image->data);
+            break;
+    }
+}
+
+static int UploadImageToGPU(Image *image, GLuint *tex) {
+    GLint internalFormat = 0;
+    GLenum format = 0;
+
+    switch (image->channel) {
+        case IMAGE_CHANNEL_RGBA:
+            assert(image->stride == image->width * 4);
+            internalFormat = GL_RGBA8;
+            format = GL_RGBA;
+            break;
+        case IMAGE_CHANNEL_A:
+            assert(image->stride == image->width);
+            internalFormat = GL_R8;
+            format = GL_RED;
+            break;
+    }
+
+    // Flip image vertically
+    void *data = malloc(image->stride * image->height);
+
+    unsigned char *dstRow = data;
+    unsigned char *srcRow = image->data + image->stride * (image->height - 1);
 
     for (int y = image->height - 1; y >= 0; --y) {
-        memcpy(dst, src, rowLength);
-        dst += rowLength;
-        src -= rowLength;
+        unsigned char *dst = dstRow;
+        unsigned char *src = srcRow;
+        for (int x = 0; x < image->width; ++x) {
+            switch (image->channel) {
+                case IMAGE_CHANNEL_RGBA: {
+                    // pre-multiply alpha
+                    float r = *src++ / 255.0f;
+                    float g = *src++ / 255.0f;
+                    float b = *src++ / 255.0f;
+                    unsigned char ucA = *src++;
+                    float a = ucA / 255.0f;
+                    r = r * a;
+                    g = g * a;
+                    b = b * a;
+                    *dst++ = (unsigned char)(r * 255.0f);
+                    *dst++ = (unsigned char)(g * 255.0f);
+                    *dst++ = (unsigned char)(b * 255.0f);
+                    *dst++ = ucA;
+                } break;
+                case IMAGE_CHANNEL_A:
+                    *dst++ = *src++;
+                    break;
+            }
+        }
+
+        dstRow += image->stride;
+        srcRow -= image->stride;
     }
 
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+    if (image->channel == IMAGE_CHANNEL_A) {
+        // Premultiped alpha format
+        GLint swizzleMask[] = { GL_RED, GL_RED, GL_RED, GL_RED };
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,
                  image->width, image->height,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+                 0, format, GL_UNSIGNED_BYTE, data);
 
     free(data);
+
+    return 0;
 }
 
 typedef struct VertexAttrib {
@@ -152,8 +242,69 @@ typedef struct GameContext {
     stbtt_bakedchar *bakedchars;
 
     Texture texBackground;
-    GLuint ftex;
+    Texture texFont;
 } GameContext;
+
+static int LoadTextureFromImage(Texture *tex, Image *image) {
+    if (UploadImageToGPU(image, &tex->id) != 0) {
+        printf("Failed to upload image %s to GPU", image->name);
+        return 1;
+    }
+
+    tex->width = image->width;
+    tex->height = image->height;
+
+    return 0;
+}
+
+static int LoadTexture(Texture *tex, const char *filename) {
+    Image image;
+
+    if (LoadImage(&image, filename) != 0) {
+        return 1;
+    }
+
+    if (LoadTextureFromImage(tex, &image) != 0) {
+        DestroyImage(&image);
+        return 1;
+    }
+
+    DestroyImage(&image);
+
+    return 0;
+}
+
+static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox) {
+    V2 invTexSize = MakeV2(1.0f / tex->width, 1.0f / tex->height);
+    BBox2 texBBox = MakeBBox2(HadamardV2(srcBBox.min, invTexSize), HadamardV2(srcBBox.max, invTexSize));
+    VertexAttrib vertices[] = {
+            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y,   // top right
+            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y,   // bottom right
+            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y,   // bottom left
+            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y,   // top left
+    };
+
+    unsigned int indices[] = {  // note that we start from 0!
+            0, 1, 3,   // first triangle
+            1, 2, 3    // second triangle
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+
+    glUseProgram(context->program);
+    GLM4 MVP = MakeGLM4FromT2(context->projection);
+    glUniformMatrix4fv(context->MVPLocation, 1, GL_FALSE, MVP.m);
+
+    glBindVertexArray(context->vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
 
 static int LoadFont(GameContext *context) {
 #ifdef RTD_WIN32
@@ -177,12 +328,12 @@ static int LoadFont(GameContext *context) {
 #define BITMAP_WIDTH 512
 #define BITMAP_HEIGHT 512
     unsigned char bitmap[BITMAP_WIDTH * BITMAP_HEIGHT];
-    int first_chars = 32;
+    int firstChars = 32;
     context->numBakedchars = 95; // ASCII 32..126
     context->bakedchars = malloc(sizeof(stbtt_bakedchar) * context->numBakedchars);
 
     if (stbtt_BakeFontBitmap(buf, 0, 32.0f, bitmap, BITMAP_WIDTH, BITMAP_HEIGHT,
-                             first_chars, context->numBakedchars,
+                             firstChars, context->numBakedchars,
                              context->bakedchars) <= 0) {
         printf("Failed to bake font bitmap\n");
         return 1;
@@ -191,10 +342,10 @@ static int LoadFont(GameContext *context) {
     free(buf);
     fclose(font);
 
-    glGenTextures(1, &context->ftex);
-    glBindTexture(GL_TEXTURE_2D, context->ftex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, BITMAP_WIDTH, BITMAP_HEIGHT, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+    Image image;
+    LoadImageFromAlphaBitmap(&image, BITMAP_WIDTH, BITMAP_HEIGHT, BITMAP_WIDTH, bitmap);
+    LoadTextureFromImage(&context->texFont, &image);
+    DestroyImage(&image);
 
     return 0;
 }
@@ -238,15 +389,15 @@ static int SetupWindowAndOpenGL(GameContext *context) {
     return 0;
 }
 
-static void DestroyImage(Image *image) {
-    stbi_image_free(image->data);
-}
-
 static int SetupRenderContext(RenderContext *context, int width, int height) {
     context->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
                                 MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
 
     glViewport(0, 0, width, height);
+
+    glEnable(GL_BLEND);
+    // Premultiped alpha format
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     // Setup VAO
     glGenVertexArrays(1, &context->vao);
@@ -278,54 +429,6 @@ static int SetupRenderContext(RenderContext *context, int width, int height) {
     context->MVPLocation = glGetUniformLocation(context->program, "MVP");
 
     return 0;
-}
-
-static int LoadTexture(Texture *tex, const char *filename) {
-    Image image;
-
-    if (LoadImage(&image, filename) != 0) {
-        return 1;
-    }
-
-    UploadImageToGPU(&image, &tex->id);
-    tex->width = image.width;
-    tex->height = image.height;
-
-    DestroyImage(&image);
-
-    return 0;
-}
-
-static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox) {
-    V2 invTexSize = MakeV2(1.0f / tex->width, 1.0f / tex->height);
-    BBox2 texBBox = MakeBBox2(HadamardV2(srcBBox.min, invTexSize), HadamardV2(srcBBox.max, invTexSize));
-    VertexAttrib vertices[] = {
-        dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y,   // top right
-        dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y,   // bottom right
-        dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y,   // bottom left
-        dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y,   // top left
-    };
-
-    unsigned int indices[] = {  // note that we start from 0!
-        0, 1, 3,   // first triangle
-        1, 2, 3    // second triangle
-    };
-
-    glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex->id);
-
-    glUseProgram(context->program);
-    GLM4 MVP = MakeGLM4FromT2(context->projection);
-    glUniformMatrix4fv(context->MVPLocation, 1, GL_FALSE, MVP.m);
-
-    glBindVertexArray(context->vao);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 static int SetupGame(GameContext *context) {
@@ -382,8 +485,11 @@ static void Render(GameContext *context) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    drawTexture(&context->renderContext, MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
+    drawTexture(&context->renderContext, MakeBBox2FromTexture(&context->texBackground),
                 &context->texBackground, MakeBBox2FromTexture(&context->texBackground));
+
+    drawTexture(&context->renderContext, MakeBBox2FromTexture(&context->texFont),
+                &context->texFont, MakeBBox2FromTexture(&context->texFont));
 }
 
 static void WaitForNextFrame(GameContext *context) {
