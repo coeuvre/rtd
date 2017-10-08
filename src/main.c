@@ -88,7 +88,7 @@ typedef struct Image {
     int width;
     int height;
     size_t stride;
-    unsigned char *data;
+    void *data;
 } Image;
 
 typedef struct Texture {
@@ -164,7 +164,7 @@ static int UploadImageToGPU(Image *image, GLuint *tex) {
     void *data = malloc(image->stride * image->height);
 
     unsigned char *dstRow = data;
-    unsigned char *srcRow = image->data + image->stride * (image->height - 1);
+    unsigned char *srcRow = (unsigned char *) image->data + image->stride * (image->height - 1);
 
     for (int y = image->height - 1; y >= 0; --y) {
         unsigned char *dst = dstRow;
