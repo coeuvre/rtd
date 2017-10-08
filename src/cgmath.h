@@ -214,7 +214,7 @@ typedef struct BBox2 {
 } BBox2;
 
 
-static inline BBox2 MakeBBox(V2 min, V2 max) {
+static inline BBox2 MakeBBox2(V2 min, V2 max) {
     BBox2 result;
     result.min = min;
     result.max = max;

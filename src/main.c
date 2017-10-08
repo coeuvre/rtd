@@ -85,15 +85,19 @@ typedef struct Texture {
     int height;
 } Texture;
 
+static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
+    BBox2 result = MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(tex->width, tex->height));
+    return result;
+}
+
 static int LoadImage(Image *image, const char *filename) {
     image->filename = filename;
     image->data = stbi_load(filename, &image->width, &image->height, &image->comp, 0);
-    if (image->data != NULL) {
-        return 0;
-    } else {
+    if (image->data == NULL) {
         printf("Failed to load image %s", filename);
         return 1;
     }
+    return 0;
 }
 
 static void UploadImageToGPU(Image *image, GLuint *tex) {
@@ -293,12 +297,14 @@ static int LoadTexture(Texture *tex, const char *filename) {
     return 0;
 }
 
-static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex) {
+static void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox) {
+    V2 invTexSize = MakeV2(1.0f / tex->width, 1.0f / tex->height);
+    BBox2 texBBox = MakeBBox2(HadamardV2(srcBBox.min, invTexSize), HadamardV2(srcBBox.max, invTexSize));
     VertexAttrib vertices[] = {
-        dstBBox.max.x, dstBBox.max.y, 0.0f, 1.0f, 1.0f,   // top right
-        dstBBox.max.x, dstBBox.min.y, 0.0f, 1.0f, 0.0f,   // bottom right
-        dstBBox.min.x, dstBBox.min.y, 0.0f, 0.0f, 0.0f,   // bottom left
-        dstBBox.min.x, dstBBox.max.y, 0.0f, 0.0f, 1.0f,   // top left
+        dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y,   // top right
+        dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y,   // bottom right
+        dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y,   // bottom left
+        dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
@@ -334,7 +340,9 @@ static int SetupGame(GameContext *context) {
         return 1;
     }
 
-    LoadTexture(&context->texBackground, "./assets/scene1.png");
+    if (LoadTexture(&context->texBackground, "./assets/scene1.png") != 0) {
+        return 1;
+    }
 
     if (LoadFont(context) != 0) {
         return 1;
@@ -373,9 +381,8 @@ static void Render(GameContext *context, GameState *state) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    drawTexture(&context->renderContext,
-                MakeBBox(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
-                &context->texBackground);
+    drawTexture(&context->renderContext, MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
+                &context->texBackground, MakeBBox2FromTexture(&context->texBackground));
 }
 
 static void WaitForNextFrame(GameContext *context) {
