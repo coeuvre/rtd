@@ -147,7 +147,7 @@ static void PreMultiplyAlpha(Image *image) {
     }
 }
 
-static int LoadImageFromFilename(Image *image, const char *filename) {
+static int LoadImage(Image *image, const char *filename) {
     image->source = IMAGE_SOURCE_FILE;
     image->channel = IMAGE_CHANNEL_RGBA;
     image->name = filename;
@@ -163,7 +163,8 @@ static int LoadImageFromFilename(Image *image, const char *filename) {
     return 0;
 }
 
-static int LoadImageFromAlphaBitmap(Image *image, int width, int height, size_t stride, const unsigned char *data) {
+static int LoadImageFromGrayBitmap(Image *image, int width, int height, size_t stride,
+                                   const unsigned char *data) {
     if (stride < width) {
         printf("Invalid bitmap data: stride < width\n");
         return 1;
@@ -284,7 +285,7 @@ static int LoadTextureFromImage(Texture *tex, Image *image) {
 static int LoadTexture(Texture *tex, const char *filename) {
     Image image;
 
-    if (LoadImageFromFilename(&image, filename) != 0) {
+    if (LoadImage(&image, filename) != 0) {
         return 1;
     }
 
@@ -367,7 +368,7 @@ static int LoadFont(GameContext *context) {
     fclose(font);
 
     Image image;
-    LoadImageFromAlphaBitmap(&image, BITMAP_WIDTH, BITMAP_HEIGHT, BITMAP_WIDTH, bitmap);
+    LoadImageFromGrayBitmap(&image, BITMAP_WIDTH, BITMAP_HEIGHT, BITMAP_WIDTH, bitmap);
     LoadTextureFromImage(&context->texFont, &image);
     DestroyImage(&image);
 
