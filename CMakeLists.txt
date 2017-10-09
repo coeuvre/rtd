@@ -42,6 +42,8 @@ endforeach ()
 FILE (GLOB_RECURSE clion_all_headers ${CMAKE_SOURCE_DIR}/src/*.h)
 add_executable(rtd
         src/main.c
+        src/image.c
+        src/renderer.c
         ${clion_all_headers}
         ${shaders})
 
