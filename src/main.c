@@ -81,6 +81,8 @@ typedef enum ImageChannel {
     IMAGE_CHANNEL_A,
 } ImageChannel;
 
+// Use float to store each channel of bitmap, ranging from 0.0 to 1.0.
+// The image is processed with sRGB decode and pre-multiplied alpha.
 typedef struct Image {
     ImageSource source;
     ImageChannel channel;
@@ -88,7 +90,7 @@ typedef struct Image {
     int width;
     int height;
     size_t stride;
-    void *data;
+    float *data;
 } Image;
 
 typedef struct Texture {
@@ -102,16 +104,73 @@ static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
     return result;
 }
 
+static void ProcessImage(float *dst, const unsigned char *src, int width, int height, size_t dstStride, size_t srcStride, ImageChannel channel) {
+    float gamma = 2.2f;
+
+    // Flip image vertically
+    unsigned char *dstRow = (unsigned char *) dst;
+    const unsigned char *srcRow = src + srcStride * (height - 1);
+
+    for (int y = 0; y < height; ++y) {
+        float *dstColor = (float *) dstRow;
+        const unsigned char *srcColor = srcRow;
+
+        for (int x = 0; x < width; ++x) {
+            switch (channel) {
+                case IMAGE_CHANNEL_RGBA: {
+                    unsigned char srcR = *srcColor++;
+                    unsigned char srcG = *srcColor++;
+                    unsigned char srcB = *srcColor++;
+                    unsigned char srcA = *srcColor++;
+
+                    float r = powf(srcR / 255.0f, gamma);
+                    float g = powf(srcG / 255.0f, gamma);
+                    float b = powf(srcB / 255.0f, gamma);
+                    float a = srcA / 255.0f;
+
+                    // pre-multiply alpha
+                    r = r * a;
+                    g = g * a;
+                    b = b * a;
+                    a = a * 1.0f;
+
+                    *dstColor++ = r;
+                    *dstColor++ = g;
+                    *dstColor++ = b;
+                    *dstColor++ = a;
+                } break;
+
+                case IMAGE_CHANNEL_A: {
+                    unsigned char srcA = *srcColor++;
+                    float a = srcA / 255.0f;
+                    *dstColor++ = a;
+                } break;
+            }
+        }
+
+        dstRow += dstStride;
+        srcRow -= srcStride;
+    }
+}
+
 static int LoadImage(Image *image, const char *filename) {
     image->source = IMAGE_SOURCE_FILE;
     image->channel = IMAGE_CHANNEL_RGBA;
     image->name = filename;
-    image->data = stbi_load(filename, &image->width, &image->height, NULL, 4);
-    image->stride = (size_t) image->width * 4;
-    if (image->data == NULL) {
+
+    unsigned char *data = stbi_load(filename, &image->width, &image->height, NULL, 4);
+    if (data == NULL) {
         printf("Failed to load image %s\n", filename);
         return 1;
     }
+
+    image->stride = sizeof(float) * 4 * image->width;
+    image->data = malloc(image->stride * image->height);
+
+    ProcessImage(image->data, data, image->width, image->height, image->stride, (size_t) 4 * image->width, image->channel);
+
+    stbi_image_free(data);
+
     return 0;
 }
 
@@ -125,90 +184,46 @@ static int LoadImageFromAlphaBitmap(Image *image, int width, int height, size_t 
     image->name = "ALPHA BITMAP";
     image->width = width;
     image->height = height;
-    image->stride = stride;
-    image->data = malloc(stride * height);
-    memcpy(image->data, data, stride * height);
+    image->stride = sizeof(float) * image->width;
+
+    image->data = malloc(image->stride * height);
+
+    ProcessImage(image->data, data, width, height, image->stride, stride, IMAGE_CHANNEL_A);
 
     return 0;
 }
 
 static void DestroyImage(Image *image) {
-    switch (image->source) {
-        case IMAGE_SOURCE_FILE:
-            stbi_image_free(image->data);
-            break;
-        case IMAGE_SOURCE_BITMAP:
-            free(image->data);
-            break;
-    }
+    free(image->data);
 }
 
 static int UploadImageToGPU(Image *image, GLuint *tex) {
+    glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
     GLint internalFormat = 0;
     GLenum format = 0;
 
     switch (image->channel) {
         case IMAGE_CHANNEL_RGBA:
-            assert(image->stride == image->width * 4);
+            assert(image->stride == sizeof(float) * 4 * image->width);
             internalFormat = GL_RGBA8;
             format = GL_RGBA;
             break;
-        case IMAGE_CHANNEL_A:
-            assert(image->stride == image->width);
+        case IMAGE_CHANNEL_A: {
+            assert(image->stride == sizeof(float) * image->width);
             internalFormat = GL_R8;
             format = GL_RED;
-            break;
+
+            // Pre-multiplied alpha format
+            GLint swizzleMask[] = { GL_RED, GL_RED, GL_RED, GL_RED };
+            glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+        } break;
     }
 
-    // Flip image vertically
-    void *data = malloc(image->stride * image->height);
-
-    unsigned char *dstRow = data;
-    unsigned char *srcRow = (unsigned char *) image->data + image->stride * (image->height - 1);
-
-    for (int y = image->height - 1; y >= 0; --y) {
-        unsigned char *dst = dstRow;
-        unsigned char *src = srcRow;
-        for (int x = 0; x < image->width; ++x) {
-            switch (image->channel) {
-                case IMAGE_CHANNEL_RGBA: {
-                    // pre-multiply alpha
-                    float r = *src++ / 255.0f;
-                    float g = *src++ / 255.0f;
-                    float b = *src++ / 255.0f;
-                    unsigned char ucA = *src++;
-                    float a = ucA / 255.0f;
-                    r = r * a;
-                    g = g * a;
-                    b = b * a;
-                    *dst++ = (unsigned char)(r * 255.0f);
-                    *dst++ = (unsigned char)(g * 255.0f);
-                    *dst++ = (unsigned char)(b * 255.0f);
-                    *dst++ = ucA;
-                } break;
-                case IMAGE_CHANNEL_A:
-                    *dst++ = *src++;
-                    break;
-            }
-        }
-
-        dstRow += image->stride;
-        srcRow -= image->stride;
-    }
-
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_2D, *tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    if (image->channel == IMAGE_CHANNEL_A) {
-        // Premultiped alpha format
-        GLint swizzleMask[] = { GL_RED, GL_RED, GL_RED, GL_RED };
-        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-    }
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,
-                 image->width, image->height,
-                 0, format, GL_UNSIGNED_BYTE, data);
-
-    free(data);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, image->width, image->height, 0, format, GL_FLOAT, image->data);
 
     return 0;
 }
@@ -396,8 +411,10 @@ static int SetupRenderContext(RenderContext *context, int width, int height) {
     glViewport(0, 0, width, height);
 
     glEnable(GL_BLEND);
-    // Premultiped alpha format
+    // Pre-multiplied alpha format
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    // Render at linear color space
+    glEnable(GL_FRAMEBUFFER_SRGB);
 
     // Setup VAO
     glGenVertexArrays(1, &context->vao);
@@ -485,7 +502,7 @@ static void Render(GameContext *context) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    drawTexture(&context->renderContext, MakeBBox2FromTexture(&context->texBackground),
+    drawTexture(&context->renderContext, MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
                 &context->texBackground, MakeBBox2FromTexture(&context->texBackground));
 
     drawTexture(&context->renderContext, MakeBBox2FromTexture(&context->texFont),
