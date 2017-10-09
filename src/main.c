@@ -81,8 +81,7 @@ typedef enum ImageChannel {
     IMAGE_CHANNEL_A,
 } ImageChannel;
 
-// Use float to store each channel of bitmap, ranging from 0.0 to 1.0.
-// The image is processed with sRGB decode and pre-multiplied alpha.
+// The image is processed with pre-multiplied alpha.
 typedef struct Image {
     ImageSource source;
     ImageChannel channel;
@@ -90,7 +89,7 @@ typedef struct Image {
     int width;
     int height;
     size_t stride;
-    float *data;
+    unsigned char *data;
 } Image;
 
 typedef struct Texture {
@@ -104,72 +103,62 @@ static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
     return result;
 }
 
-static void ProcessImage(float *dst, const unsigned char *src, int width, int height, size_t dstStride, size_t srcStride, ImageChannel channel) {
-    float gamma = 2.2f;
+static inline unsigned char encodeSRGB(float val) {
+    return (unsigned char) (powf(val, 1.0f / 2.2f) * 255.0f + 0.5f);
+}
 
-    // Flip image vertically
-    unsigned char *dstRow = (unsigned char *) dst;
-    const unsigned char *srcRow = src + srcStride * (height - 1);
+static inline float decodeSRGB(unsigned char val) {
+    return powf(val / 255.0f, 2.2f);
+}
 
-    for (int y = 0; y < height; ++y) {
-        float *dstColor = (float *) dstRow;
-        const unsigned char *srcColor = srcRow;
+static void PreMultiplyAlpha(Image *image) {
+    unsigned char *row = image->data;
 
-        for (int x = 0; x < width; ++x) {
-            switch (channel) {
-                case IMAGE_CHANNEL_RGBA: {
-                    unsigned char srcR = *srcColor++;
-                    unsigned char srcG = *srcColor++;
-                    unsigned char srcB = *srcColor++;
-                    unsigned char srcA = *srcColor++;
+    for (int y = 0; y < image->height; ++y) {
+        unsigned char *src = row;
+        unsigned char *dst = row;
 
-                    float r = powf(srcR / 255.0f, gamma);
-                    float g = powf(srcG / 255.0f, gamma);
-                    float b = powf(srcB / 255.0f, gamma);
-                    float a = srcA / 255.0f;
+        for (int x = 0; x < image->width; ++x) {
+            assert(image->channel == IMAGE_CHANNEL_RGBA);
 
-                    // pre-multiply alpha
-                    r = r * a;
-                    g = g * a;
-                    b = b * a;
-                    a = a * 1.0f;
+            unsigned char srcR = *src++;
+            unsigned char srcG = *src++;
+            unsigned char srcB = *src++;
+            unsigned char srcA = *src++;
 
-                    *dstColor++ = r;
-                    *dstColor++ = g;
-                    *dstColor++ = b;
-                    *dstColor++ = a;
-                } break;
+            float r = decodeSRGB(srcR);
+            float g = decodeSRGB(srcG);
+            float b = decodeSRGB(srcB);
+            float a = srcA / 255.0f;
 
-                case IMAGE_CHANNEL_A: {
-                    unsigned char srcA = *srcColor++;
-                    float a = srcA / 255.0f;
-                    *dstColor++ = a;
-                } break;
-            }
+            // pre-multiply alpha
+            r = r * a;
+            g = g * a;
+            b = b * a;
+            a = a * 1.0f;
+
+            *dst++ = encodeSRGB(r);
+            *dst++ = encodeSRGB(g);
+            *dst++ = encodeSRGB(b);
+            *dst++ = (unsigned char) (a * 255.0f + 0.5f);
         }
 
-        dstRow += dstStride;
-        srcRow -= srcStride;
+        row += image->stride;
     }
 }
 
-static int LoadImage(Image *image, const char *filename) {
+static int LoadImageFromFilename(Image *image, const char *filename) {
     image->source = IMAGE_SOURCE_FILE;
     image->channel = IMAGE_CHANNEL_RGBA;
     image->name = filename;
-
-    unsigned char *data = stbi_load(filename, &image->width, &image->height, NULL, 4);
-    if (data == NULL) {
+    image->data = stbi_load(filename, &image->width, &image->height, NULL, 4);
+    if (image->data == NULL) {
         printf("Failed to load image %s\n", filename);
         return 1;
     }
+    image->stride = (size_t) 4 * image->width;
 
-    image->stride = sizeof(float) * 4 * image->width;
-    image->data = malloc(image->stride * image->height);
-
-    ProcessImage(image->data, data, image->width, image->height, image->stride, (size_t) 4 * image->width, image->channel);
-
-    stbi_image_free(data);
+    PreMultiplyAlpha(image);
 
     return 0;
 }
@@ -184,20 +173,38 @@ static int LoadImageFromAlphaBitmap(Image *image, int width, int height, size_t 
     image->name = "ALPHA BITMAP";
     image->width = width;
     image->height = height;
-    image->stride = sizeof(float) * image->width;
+    image->stride = (size_t) image->width;
 
     image->data = malloc(image->stride * height);
-
-    ProcessImage(image->data, data, width, height, image->stride, stride, IMAGE_CHANNEL_A);
+    memcpy(image->data, data, image->stride * height);
 
     return 0;
 }
 
 static void DestroyImage(Image *image) {
-    free(image->data);
+    switch (image->source) {
+        case IMAGE_SOURCE_FILE:
+            stbi_image_free(image->data);
+            break;
+        case IMAGE_SOURCE_BITMAP:
+            free(image->data);
+            break;
+    }
 }
 
 static int UploadImageToGPU(Image *image, GLuint *tex) {
+    unsigned char *data = malloc(image->stride * image->height);
+
+    // Flip image vertically
+    unsigned char *dstRow = data;
+    const unsigned char *srcRow = image->data + image->stride * (image->height - 1);
+
+    for (int y = 0; y < image->height; ++y) {
+        memcpy(dstRow, srcRow, image->stride);
+        dstRow += image->stride;
+        srcRow -= image->stride;
+    }
+
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -208,12 +215,12 @@ static int UploadImageToGPU(Image *image, GLuint *tex) {
 
     switch (image->channel) {
         case IMAGE_CHANNEL_RGBA:
-            assert(image->stride == sizeof(float) * 4 * image->width);
-            internalFormat = GL_RGBA8;
+            assert(image->stride == 4 * image->width);
+            internalFormat = GL_SRGB8_ALPHA8;
             format = GL_RGBA;
             break;
         case IMAGE_CHANNEL_A: {
-            assert(image->stride == sizeof(float) * image->width);
+            assert(image->stride == image->width);
             internalFormat = GL_R8;
             format = GL_RED;
 
@@ -223,7 +230,9 @@ static int UploadImageToGPU(Image *image, GLuint *tex) {
         } break;
     }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, image->width, image->height, 0, format, GL_FLOAT, image->data);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, image->width, image->height, 0, format, GL_UNSIGNED_BYTE, data);
+
+    free(data);
 
     return 0;
 }
@@ -275,7 +284,7 @@ static int LoadTextureFromImage(Texture *tex, Image *image) {
 static int LoadTexture(Texture *tex, const char *filename) {
     Image image;
 
-    if (LoadImage(&image, filename) != 0) {
+    if (LoadImageFromFilename(&image, filename) != 0) {
         return 1;
     }
 
