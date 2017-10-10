@@ -19,7 +19,7 @@ typedef struct Font {
     void *internal;
 } Font;
 
-extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawbleHeight);
+extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawableHeight);
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);

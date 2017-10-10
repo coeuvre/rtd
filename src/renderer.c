@@ -142,7 +142,7 @@ static void UploadImageToGPU(const unsigned char *src, int width, int height, in
 }
 
 
-extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawbleHeight) {
+extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawableHeight) {
     RenderContext *renderContext = malloc(sizeof(RenderContext));
 
     renderContext->pointToPixel = drawableWidth / windowWidth;
@@ -150,7 +150,7 @@ extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int
     renderContext->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
                                       MakeT2FromScale(MakeV2(1.0f / windowWidth * 2.0f, 1.0f / windowHeight * 2.0f)));
 
-    glViewport(0, 0, drawableWidth, drawbleHeight);
+    glViewport(0, 0, drawableWidth, drawableHeight);
 
     glEnable(GL_BLEND);
     // Pre-multiplied alpha format
