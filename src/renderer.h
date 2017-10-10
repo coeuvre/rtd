@@ -19,13 +19,15 @@ typedef struct Font {
     void *internal;
 } Font;
 
-extern RenderContext *CreateRenderContext(int width, int height);
+extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawbleHeight);
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
+// dstBBox is in point space
 extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
 
 extern Font *LoadFont(RenderContext *renderContext, const char *filename);
+// size, x, y is in point space
 extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color);
 
 static inline BBox2 MakeBBox2FromTexture(Texture *tex) {

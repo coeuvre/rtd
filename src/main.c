@@ -67,9 +67,9 @@ static int SetupWindowAndOpenGL(GameContext *context) {
 
     int width, height;
     SDL_GL_GetDrawableSize(context->window, &width, &height);
-    printf("Drawable size: %dx%d", width, height);
-
-    context->renderContext = CreateRenderContext(width, height);
+    printf("Drawable size: %dx%d\n", width, height);
+    
+    context->renderContext = CreateRenderContext(WINDOW_WIDTH, WINDOW_HEIGHT, width, height);
     if (context->renderContext == NULL) {
         return 1;
     }
@@ -77,14 +77,14 @@ static int SetupWindowAndOpenGL(GameContext *context) {
     return 0;
 }
 
-static int SetupGame(GameContext *context) {
+static void SetupGame(GameContext *context) {
     if (SetupWindowAndOpenGL(context) != 0) {
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     context->texBackground = LoadTexture(context->renderContext, "assets/scene1.png");
     if (context->texBackground == NULL) {
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
 #ifdef RTD_WIN32
@@ -94,10 +94,8 @@ static int SetupGame(GameContext *context) {
 #endif
     context->font = LoadFont(context->renderContext, font);
     if (context->font == NULL) {
-        return 1;
+        exit(EXIT_FAILURE);
     }
-
-    return 0;
 }
 
 static void ProcessSystemEvent(GameContext *context) {
@@ -136,7 +134,8 @@ static void Render(GameContext *context) {
                 context->texBackground, MakeBBox2FromTexture(context->texBackground),
                 OneV4(), ZeroV4());
 
-    drawText(context->renderContext, context->font, 32.0f, 0.0f, WINDOW_HEIGHT - 40, "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    drawText(context->renderContext, context->font, 20.0f, 0.0f, WINDOW_HEIGHT - 20.0f,
+             "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 static void WaitForNextFrame(GameContext *context) {
@@ -163,9 +162,7 @@ int main(int argc, char *argv[]) {
 
     GameContext context = {0};
 
-    if (SetupGame(&context) != 0) {
-        return 1;
-    }
+    SetupGame(&context);
 
     return RunMainLoop(&context);
 }

@@ -20,6 +20,7 @@ const char FRAGMENT_SHADER[] = {
 
 struct RenderContext {
     T2 projection;
+    float pointToPixel;
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
@@ -141,13 +142,15 @@ static void UploadImageToGPU(const unsigned char *src, int width, int height, in
 }
 
 
-extern RenderContext *CreateRenderContext(int width, int height) {
-    RenderContext *context = malloc(sizeof(RenderContext));
+extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawbleHeight) {
+    RenderContext *renderContext = malloc(sizeof(RenderContext));
 
-    context->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
-                                MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
+    renderContext->pointToPixel = drawableWidth / windowWidth;
 
-    glViewport(0, 0, width, height);
+    renderContext->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
+                                      MakeT2FromScale(MakeV2(1.0f / windowWidth * 2.0f, 1.0f / windowHeight * 2.0f)));
+
+    glViewport(0, 0, drawableWidth, drawbleHeight);
 
     glEnable(GL_BLEND);
     // Pre-multiplied alpha format
@@ -156,15 +159,15 @@ extern RenderContext *CreateRenderContext(int width, int height) {
     glEnable(GL_FRAMEBUFFER_SRGB);
 
     // Setup VAO
-    glGenVertexArrays(1, &context->vao);
-    glGenBuffers(1, &context->vbo);
-    glGenBuffers(1, &context->ebo);
+    glGenVertexArrays(1, &renderContext->vao);
+    glGenBuffers(1, &renderContext->vbo);
+    glGenBuffers(1, &renderContext->ebo);
 
-    glBindVertexArray(context->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
+    glBindVertexArray(renderContext->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, renderContext->vbo);
 //    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->ebo);
 //    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, pos));
@@ -182,16 +185,16 @@ extern RenderContext *CreateRenderContext(int width, int height) {
     glBindVertexArray(0);
 
     // Compile Program
-    context->program = CompileGLProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-    if (!context->program) {
-        free(context);
+    renderContext->program = CompileGLProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+    if (!renderContext->program) {
+        free(renderContext);
         return NULL;
     }
-    glUseProgram(context->program);
-    glUniform1i(glGetUniformLocation(context->program, "texture0"), 0);
-    context->MVPLocation = glGetUniformLocation(context->program, "MVP");
+    glUseProgram(renderContext->program);
+    glUniform1i(glGetUniformLocation(renderContext->program, "texture0"), 0);
+    renderContext->MVPLocation = glGetUniformLocation(renderContext->program, "MVP");
 
-    return context;
+    return renderContext;
 }
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel) {
@@ -290,7 +293,7 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
     FontInternal *fontInternal = font->internal;
     stbtt_fontinfo *info = &fontInternal->info;
 
-    float scale = stbtt_ScaleForPixelHeight(info, size);
+    float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
 //
 //    int ascentInt, descentInt, lineGap;
 //    stbtt_GetFontVMetrics(font, &ascentInt, &descentInt, &lineGap);
@@ -305,7 +308,10 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
         unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xoff, &yoff);
         if (bitmap != NULL) {
             Texture *texture = CreateTextureFromMemory(renderContext, bitmap, width, height, width, IMAGE_CHANNEL_A);
-            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff, y - height - yoff), MakeV2(width, height)),
+            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff / renderContext->pointToPixel,
+                                                               y - (height + yoff) / renderContext->pointToPixel),
+                                                        MakeV2(width / renderContext->pointToPixel,
+                                                               height / renderContext->pointToPixel)),
                         texture, MakeBBox2FromTexture(texture), color, ZeroV4());
             DestroyTexture(renderContext, &texture);
             stbtt_FreeBitmap(bitmap, 0);
@@ -313,12 +319,12 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
 
         int axInt;
         stbtt_GetCodepointHMetrics(info, codePoint, &axInt, 0);
-        float ax = axInt * scale;
+        float ax = axInt * scale / renderContext->pointToPixel;
 
         x += ax;
 
         int kernInt = stbtt_GetCodepointKernAdvance(info, codePoint, text[i + 1]);
-        float kern = kernInt * scale;
+        float kern = kernInt * scale / renderContext->pointToPixel;
 
         x += kern;
     }
