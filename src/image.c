@@ -48,7 +48,7 @@ static void PreMultiplyAlpha(Image *image) {
     }
 }
 
-extern Image *LoadImage(const char *filename) {
+extern Image *LoadImageFromFilename(const char *filename) {
     Image *image = malloc(sizeof(Image));
 
     image->source = IMAGE_SOURCE_FILE;

@@ -24,7 +24,7 @@ typedef struct Image {
     unsigned char *data;
 } Image;
 
-extern Image *LoadImage(const char *filename);
+extern Image *LoadImageFromFilename(const char *filename);
 extern Image *LoadImageFromGrayBitmap(int width, int height, size_t stride, const unsigned char *data);
 extern void DestroyImage(Image **image);
 

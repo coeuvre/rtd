@@ -369,6 +369,31 @@ static inline V2 GetT2Scale(T2 t) {
     return result;
 }
 
+//
+// 4D Vector
+//
+typedef struct V4 {
+    union {
+        struct {
+            F x;
+            F y;
+            F z;
+            F w;
+        };
+
+        struct {
+            F r;
+            F g;
+            F b;
+            F a;
+        };
+    };
+} V4;
+
+static inline V4 MakeV4(F x, F y, F z, F w) {
+    V4 result = { x, y, z, w };
+    return result;
+}
 
 typedef union GLM4 {
     struct {

@@ -173,10 +173,10 @@ static void Render(GameContext *context) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     drawTexture(context->renderContext, MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(WINDOW_WIDTH, WINDOW_HEIGHT)),
-                context->texBackground, MakeBBox2FromTexture(context->texBackground));
+                context->texBackground, MakeBBox2FromTexture(context->texBackground), COLOR_WHITE);
 
     drawTexture(context->renderContext, MakeBBox2FromTexture(context->texFont),
-                context->texFont, MakeBBox2FromTexture(context->texFont));
+                context->texFont, MakeBBox2FromTexture(context->texFont), MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
 }
 
 static void WaitForNextFrame(GameContext *context) {

@@ -30,6 +30,7 @@ typedef struct GLTexture {
 typedef struct VertexAttrib {
     F pos[3];
     F texCoord[2];
+    F color[4];
 } VertexAttrib;
 
 static GLuint CompileGLShader(GLenum type, const char *source) {
@@ -155,6 +156,9 @@ extern RenderContext *CreateRenderContext(int width, int height) {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, texCoord));
     glEnableVertexAttribArray(1);
 
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, color));
+    glEnableVertexAttribArray(2);
+
     glBindVertexArray(0);
 
     // Compile Program
@@ -190,16 +194,16 @@ extern Texture *LoadTextureFromImage(RenderContext *renderContext, Image *image)
 }
 
 
-extern void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox) {
+extern void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 tint) {
     GLTexture *glTex = tex->internal;
 
     V2 invTexSize = MakeV2(1.0f / tex->width, 1.0f / tex->height);
     BBox2 texBBox = MakeBBox2(HadamardV2(srcBBox.min, invTexSize), HadamardV2(srcBBox.max, invTexSize));
     VertexAttrib vertices[] = {
-            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y,   // top right
-            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y,   // bottom right
-            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y,   // bottom left
-            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y,   // top left
+            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, tint.r, tint.g, tint.b, tint.a,   // top right
+            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y, tint.r, tint.g, tint.b, tint.a,   // bottom right
+            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y, tint.r, tint.g, tint.b, tint.a,   // bottom left
+            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y, tint.r, tint.g, tint.b, tint.a,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
