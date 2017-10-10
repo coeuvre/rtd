@@ -6,6 +6,10 @@
 
 #include <glad/glad.h>
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
+#include <stb_truetype.h>
+
 const char VERTEX_SHADER[] = {
 #include "shaders/test.vert.gen"
 };
@@ -26,6 +30,11 @@ struct RenderContext {
 typedef struct GLTexture {
     GLuint id;
 } GLTexture;
+
+typedef struct FontInternal {
+    void *buf;
+    stbtt_fontinfo info;
+} FontInternal;
 
 typedef struct VertexAttrib {
     F pos[3];
@@ -79,16 +88,20 @@ static GLuint CompileGLProgram(const char *vss, const char *fss) {
     return result;
 }
 
-static void UploadImageToGPU(const unsigned char *data, int width, int height, int stride, ImageChannel channel, GLuint *tex) {
-    unsigned char *processedData = malloc((size_t) stride * height);
+static void UploadImageToGPU(const unsigned char *src, int width, int height, int stride, ImageChannel channel, GLuint *tex) {
+    int dstStride = (int) (CeilF(stride / 4.0f) * 4.0f);
+
+    assert(stride <= dstStride);
+
+    unsigned char *data = malloc((size_t) dstStride * height);
 
     // Flip image vertically
-    unsigned char *dstRow = processedData;
-    const unsigned char *srcRow = data + stride * (height - 1);
+    unsigned char *dstRow = data;
+    const unsigned char *srcRow = src + stride * (height - 1);
 
     for (int y = 0; y < height; ++y) {
-        memcpy(dstRow, srcRow, stride);
-        dstRow += stride;
+        memcpy(dstRow, srcRow, (size_t) stride);
+        dstRow += dstStride;
         srcRow -= stride;
     }
 
@@ -96,29 +109,35 @@ static void UploadImageToGPU(const unsigned char *data, int width, int height, i
     glBindTexture(GL_TEXTURE_2D, *tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     GLint internalFormat = 0;
     GLenum format = 0;
+    GLint numberOfPixels = 0;
 
     switch (channel) {
         case IMAGE_CHANNEL_RGBA:
-            assert(stride == 4 * width);
             internalFormat = GL_SRGB8_ALPHA8;
             format = GL_RGBA;
+            numberOfPixels = dstStride / 4;
             break;
         case IMAGE_CHANNEL_A: {
-            assert(stride == width);
             internalFormat = GL_R8;
             format = GL_RED;
+            numberOfPixels = dstStride;
 
             GLint swizzleMask[] = { GL_ONE, GL_ONE, GL_ONE, GL_RED };
             glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
         } break;
     }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, processedData);
+    assert(dstStride % 4 == 0);
 
-    free(processedData);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, numberOfPixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+    free(data);
 }
 
 
@@ -236,4 +255,71 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
     glBindVertexArray(renderContext->vao);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
+extern Font *LoadFont(RenderContext *renderContext, const char *filename) {
+    (void) renderContext;
+
+    FILE *file = fopen(filename, "rb");
+
+    if (!file) {
+        printf("Failed to load font: %s\n", filename);
+        return NULL;
+    }
+    fseek(file, 0, SEEK_END);
+    size_t size = (size_t)ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    Font *font = malloc(sizeof(Font));
+    font->name = filename;
+
+    FontInternal *fontInternal = malloc(sizeof(FontInternal));
+    font->internal = fontInternal;
+
+    fontInternal->buf = malloc(size);
+
+    fread(fontInternal->buf, 1, size, file);
+    fclose(file);
+
+    stbtt_InitFont(&fontInternal->info, fontInternal->buf, 0);
+
+    return font;
+}
+
+extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
+    FontInternal *fontInternal = font->internal;
+    stbtt_fontinfo *info = &fontInternal->info;
+
+    float scale = stbtt_ScaleForPixelHeight(info, size);
+//
+//    int ascentInt, descentInt, lineGap;
+//    stbtt_GetFontVMetrics(font, &ascentInt, &descentInt, &lineGap);
+//
+//    float ascent = ascentInt * scale;
+//    float descent = descentInt * scale;
+
+    for (int i = 0; i < strlen(text); ++i) {
+        int codePoint = text[i];
+
+        int width, height, xoff, yoff;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xoff, &yoff);
+        if (bitmap != NULL) {
+            Texture *texture = CreateTextureFromMemory(renderContext, bitmap, width, height, width, IMAGE_CHANNEL_A);
+            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff, y - height - yoff), MakeV2(width, height)),
+                        texture, MakeBBox2FromTexture(texture), color, ZeroV4());
+            DestroyTexture(renderContext, &texture);
+            stbtt_FreeBitmap(bitmap, 0);
+        }
+
+        int axInt;
+        stbtt_GetCodepointHMetrics(info, codePoint, &axInt, 0);
+        float ax = axInt * scale;
+
+        x += ax;
+
+        int kernInt = stbtt_GetCodepointKernAdvance(info, codePoint, text[i + 1]);
+        float kern = kernInt * scale;
+
+        x += kern;
+    }
 }
