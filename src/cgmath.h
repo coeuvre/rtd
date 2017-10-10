@@ -135,10 +135,17 @@ static inline V2 PerpRV2(V2 v) {
     return result;
 }
 
-static inline V2 HadamardV2(V2 a, V2 b) {
+static inline V2 HadamardMulV2(V2 a, V2 b) {
     V2 result;
     result.x = a.x * b.x;
     result.y = a.y * b.y;
+    return result;
+}
+
+static inline V2 HadamardDivV2(V2 a, V2 b) {
+    V2 result;
+    result.x = a.x / b.x;
+    result.y = a.y / b.y;
     return result;
 }
 
@@ -213,7 +220,6 @@ typedef struct BBox2 {
     V2 max;
 } BBox2;
 
-
 static inline BBox2 MakeBBox2(V2 min, V2 max) {
     BBox2 result;
     result.min = min;
@@ -221,6 +227,12 @@ static inline BBox2 MakeBBox2(V2 min, V2 max) {
     return result;
 }
 
+static inline BBox2 MakeBBox2MinSize(V2 min, V2 size) {
+    BBox2 result;
+    result.min = min;
+    result.max = AddV2(min, size);
+    return result;
+}
 
 //
 // 2D Linear System
@@ -393,6 +405,14 @@ typedef struct V4 {
 static inline V4 MakeV4(F x, F y, F z, F w) {
     V4 result = { x, y, z, w };
     return result;
+}
+
+static inline V4 ZeroV4(void) {
+    return MakeV4(0.0f, 0.0f, 0.0f, 0.0f);
+}
+
+static inline V4 OneV4(void) {
+    return MakeV4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 typedef union GLM4 {

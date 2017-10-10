@@ -60,14 +60,14 @@ extern Image *LoadImageFromFilename(const char *filename) {
         free(image);
         return NULL;
     }
-    image->stride = (size_t) 4 * image->width;
+    image->stride = 4 * image->width;
 
-    PreMultiplyAlpha(image);
+//    PreMultiplyAlpha(image);
 
     return image;
 }
 
-extern Image *LoadImageFromGrayBitmap(int width, int height, size_t stride, const unsigned char *data) {
+extern Image *LoadImageFromGrayBitmap(int width, int height, int stride, const unsigned char *data) {
     assert(stride >= width);
 
     Image *image = malloc(sizeof(Image));
@@ -76,9 +76,9 @@ extern Image *LoadImageFromGrayBitmap(int width, int height, size_t stride, cons
     image->name = "ALPHA BITMAP";
     image->width = width;
     image->height = height;
-    image->stride = (size_t) image->width;
+    image->stride = image->width;
 
-    image->data = malloc(image->stride * height);
+    image->data = malloc((size_t) image->stride * height);
     memcpy(image->data, data, image->stride * height);
 
     return image;

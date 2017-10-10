@@ -6,8 +6,6 @@
 #include "cgmath.h"
 #include "image.h"
 
-#define COLOR_WHITE MakeV4(1.0f, 1.0f, 1.0f, 1.0f)
-
 typedef struct RenderContext RenderContext;
 
 typedef struct Texture {
@@ -17,12 +15,18 @@ typedef struct Texture {
 } Texture;
 
 extern RenderContext *CreateRenderContext(int width, int height);
-extern Texture *LoadTextureFromImage(RenderContext *renderContext, Image *image);
-extern void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 tint);
+extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
+extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
+extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
 
 static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
     BBox2 result = MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(tex->width, tex->height));
     return result;
+}
+
+static inline Texture *CreateTextureFromImage(RenderContext *renderContext, Image *image) {
+    return CreateTextureFromMemory(renderContext, image->data, image->width, image->height, image->stride,
+                                   image->channel);
 }
 
 static inline Texture *LoadTexture(RenderContext *renderContext, const char *filename) {
@@ -32,7 +36,7 @@ static inline Texture *LoadTexture(RenderContext *renderContext, const char *fil
         return NULL;
     }
 
-    Texture *tex = LoadTextureFromImage(renderContext, image);
+    Texture *tex = CreateTextureFromImage(renderContext, image);
 
     DestroyImage(&image);
 

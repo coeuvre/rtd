@@ -31,6 +31,7 @@ typedef struct VertexAttrib {
     F pos[3];
     F texCoord[2];
     F color[4];
+    F tint[4];
 } VertexAttrib;
 
 static GLuint CompileGLShader(GLenum type, const char *source) {
@@ -78,17 +79,17 @@ static GLuint CompileGLProgram(const char *vss, const char *fss) {
     return result;
 }
 
-static int UploadImageToGPU(Image *image, GLuint *tex) {
-    unsigned char *data = malloc(image->stride * image->height);
+static void UploadImageToGPU(const unsigned char *data, int width, int height, int stride, ImageChannel channel, GLuint *tex) {
+    unsigned char *processedData = malloc((size_t) stride * height);
 
     // Flip image vertically
-    unsigned char *dstRow = data;
-    const unsigned char *srcRow = image->data + image->stride * (image->height - 1);
+    unsigned char *dstRow = processedData;
+    const unsigned char *srcRow = data + stride * (height - 1);
 
-    for (int y = 0; y < image->height; ++y) {
-        memcpy(dstRow, srcRow, image->stride);
-        dstRow += image->stride;
-        srcRow -= image->stride;
+    for (int y = 0; y < height; ++y) {
+        memcpy(dstRow, srcRow, stride);
+        dstRow += stride;
+        srcRow -= stride;
     }
 
     glGenTextures(1, tex);
@@ -99,28 +100,25 @@ static int UploadImageToGPU(Image *image, GLuint *tex) {
     GLint internalFormat = 0;
     GLenum format = 0;
 
-    switch (image->channel) {
+    switch (channel) {
         case IMAGE_CHANNEL_RGBA:
-            assert(image->stride == 4 * image->width);
+            assert(stride == 4 * width);
             internalFormat = GL_SRGB8_ALPHA8;
             format = GL_RGBA;
             break;
         case IMAGE_CHANNEL_A: {
-            assert(image->stride == image->width);
+            assert(stride == width);
             internalFormat = GL_R8;
             format = GL_RED;
 
-            // Pre-multiplied alpha format
-            GLint swizzleMask[] = { GL_RED, GL_RED, GL_RED, GL_RED };
+            GLint swizzleMask[] = { GL_ONE, GL_ONE, GL_ONE, GL_RED };
             glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
         } break;
     }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, image->width, image->height, 0, format, GL_UNSIGNED_BYTE, data);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, processedData);
 
-    free(data);
-
-    return 0;
+    free(processedData);
 }
 
 
@@ -150,7 +148,7 @@ extern RenderContext *CreateRenderContext(int width, int height) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
 //    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, pos));
     glEnableVertexAttribArray(0);
 
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, texCoord));
@@ -158,6 +156,9 @@ extern RenderContext *CreateRenderContext(int width, int height) {
 
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, color));
     glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, tint));
+    glEnableVertexAttribArray(3);
 
     glBindVertexArray(0);
 
@@ -174,36 +175,44 @@ extern RenderContext *CreateRenderContext(int width, int height) {
     return context;
 }
 
-extern Texture *LoadTextureFromImage(RenderContext *renderContext, Image *image) {
+extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel) {
     (void) renderContext;
 
-    GLTexture *glTex = malloc(sizeof(struct GLTexture));
-
-    if (UploadImageToGPU(image, &glTex->id) != 0) {
-        printf("Failed to upload image %s to GPU", image->name);
-        free(glTex);
-        return NULL;
-    }
-
     Texture *tex = malloc(sizeof(Texture));
-    tex->width = image->width;
-    tex->height = image->height;
+    GLTexture *glTex = malloc(sizeof(struct GLTexture));
+    tex->width = width;
+    tex->height = height;
     tex->internal = glTex;
+
+    UploadImageToGPU(data, width, height, stride, channel, &glTex->id);
 
     return tex;
 }
 
+extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
+    (void) renderContext;
 
-extern void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 tint) {
+    Texture *texture = *ptr;
+    GLTexture *glTexture = texture->internal;
+
+    glDeleteTextures(1, &glTexture->id);
+
+    free(glTexture);
+    free(texture);
+
+    *ptr = NULL;
+}
+
+extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
     GLTexture *glTex = tex->internal;
 
-    V2 invTexSize = MakeV2(1.0f / tex->width, 1.0f / tex->height);
-    BBox2 texBBox = MakeBBox2(HadamardV2(srcBBox.min, invTexSize), HadamardV2(srcBBox.max, invTexSize));
+    V2 texSize = MakeV2(tex->width, tex->height);
+    BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
     VertexAttrib vertices[] = {
-            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, tint.r, tint.g, tint.b, tint.a,   // top right
-            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y, tint.r, tint.g, tint.b, tint.a,   // bottom right
-            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y, tint.r, tint.g, tint.b, tint.a,   // bottom left
-            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y, tint.r, tint.g, tint.b, tint.a,   // top left
+            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
+            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom right
+            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom left
+            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
@@ -211,19 +220,20 @@ extern void drawTexture(RenderContext *context, BBox2 dstBBox, Texture *tex, BBo
             1, 2, 3    // second triangle
     };
 
-    glBindBuffer(GL_ARRAY_BUFFER, context->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderContext->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, context->ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
-    glUseProgram(context->program);
-    GLM4 MVP = MakeGLM4FromT2(context->projection);
-    glUniformMatrix4fv(context->MVPLocation, 1, GL_FALSE, MVP.m);
+    glUseProgram(renderContext->program);
+    GLM4 MVP = MakeGLM4FromT2(renderContext->projection);
+    glUniformMatrix4fv(renderContext->MVPLocation, 1, GL_FALSE, MVP.m);
 
-    glBindVertexArray(context->vao);
+    glBindVertexArray(renderContext->vao);
+
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
