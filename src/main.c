@@ -3,12 +3,11 @@
 
 #include <SDL2/SDL.h>
 
-#include <glad/glad.h>
-
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
 #include "cgmath.h"
+#include "window.h"
 #include "renderer.h"
 
 typedef struct GameState {
@@ -16,71 +15,20 @@ typedef struct GameState {
 } GameState;
 
 typedef struct GameContext {
-    SDL_Window *window;
-    SDL_GLContext *glContext;
-
+    Window *window;
     RenderContext *renderContext;
     GameState gameState;
 
     Font *font;
-
     Texture *texBackground;
 } GameContext;
 
-static int SetupWindowAndOpenGL(GameContext *context) {
-    SDL_Init(SDL_INIT_VIDEO);
-
-    // Use this function to set an OpenGL window attribute before window creation.
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-    context->window = SDL_CreateWindow(
-        "RTD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
-
-    if (!context->window) {
-        printf("Failed to create SDL window: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    context->glContext = SDL_GL_CreateContext(context->window);
-
-    SDL_GL_SetSwapInterval(1);
-
-    if (gladLoadGLLoader(&SDL_GL_GetProcAddress) == 0) {
-        printf("Failed to load OpenGL\n");
-        return 1;
-    }
-
-#ifdef GLAD_DEBUG
-    printf("Glad Debug Mode\n");
-#endif
-
-    if (GLVersion.major < 3) {
-        printf("Your system doesn't support OpenGL >= 3!\n");
-        return 1;
-    }
-
-    printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
-
-    int width, height;
-    SDL_GL_GetDrawableSize(context->window, &width, &height);
-    printf("Drawable size: %dx%d\n", width, height);
-    
-    context->renderContext = CreateRenderContext(WINDOW_WIDTH, WINDOW_HEIGHT, width, height);
-    if (context->renderContext == NULL) {
-        return 1;
-    }
-
-    return 0;
-}
 
 static void SetupGame(GameContext *context) {
-    if (SetupWindowAndOpenGL(context) != 0) {
-        exit(EXIT_FAILURE);
-    }
+    SDL_Init(0);
+
+    context->window = CreateGameWindow("RTD", WINDOW_WIDTH, WINDOW_HEIGHT);
+    context->renderContext = CreateRenderContext(context->window->width, context->window->height, context->window->drawableWidth / context->window->width);
 
     context->texBackground = LoadTexture(context->renderContext, "assets/scene1.png");
     if (context->texBackground == NULL) {
@@ -139,10 +87,6 @@ static void Render(GameContext *context) {
              "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
-static void WaitForNextFrame(GameContext *context) {
-    SDL_GL_SwapWindow(context->window);
-}
-
 static int RunMainLoop(GameContext *context) {
     GameState *state = &context->gameState;
 
@@ -152,7 +96,7 @@ static int RunMainLoop(GameContext *context) {
         ProcessSystemEvent(context);
         Update(context);
         Render(context);
-        WaitForNextFrame(context);
+        SwapWindowBuffers(context->window);
     }
 
     return 0;

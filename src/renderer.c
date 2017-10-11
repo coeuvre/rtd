@@ -195,15 +195,15 @@ static void UploadImageToGPU(Texture *tex, const unsigned char *data, int width,
 }
 
 
-extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawableHeight) {
+extern RenderContext *CreateRenderContext(int width, int height, float pointToPixel) {
     RenderContext *renderContext = malloc(sizeof(RenderContext));
 
-    renderContext->pointToPixel = drawableWidth / windowWidth;
+    renderContext->pointToPixel = pointToPixel;
 
     renderContext->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
-                                      MakeT2FromScale(MakeV2(1.0f / windowWidth * 2.0f, 1.0f / windowHeight * 2.0f)));
+                                      MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
 
-    glViewport(0, 0, drawableWidth, drawableHeight);
+    glViewport(0, 0, (GLsizei) (width * pointToPixel), (GLsizei) (height * pointToPixel));
 
     glEnable(GL_BLEND);
     // Pre-multiplied alpha format

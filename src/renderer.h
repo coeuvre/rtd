@@ -21,7 +21,7 @@ typedef struct Font {
     void *internal;
 } Font;
 
-extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawableHeight);
+extern RenderContext *CreateRenderContext(int width, int height, float pointToPixel);
 
 extern void ClearDrawing(RenderContext *renderContext);
 
