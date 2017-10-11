@@ -9,15 +9,13 @@
 #include "cgmath.h"
 #include "window.h"
 #include "renderer.h"
-
-typedef struct GameState {
-    int isRunning;
-} GameState;
+#include "time.h"
 
 typedef struct GameContext {
     Window *window;
     RenderContext *renderContext;
-    GameState gameState;
+    FPSCounter fpsCounter;
+    int isRunning;
 
     Font *font;
     Texture *texBackground;
@@ -41,20 +39,18 @@ static void SetupGame(GameContext *context) {
 }
 
 static void ProcessSystemEvent(GameContext *context) {
-    GameState *state = &context->gameState;
-
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT: {
-                state->isRunning = 0;
+                context->isRunning = 0;
                 break;
             }
 
             case SDL_KEYDOWN: {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    state->isRunning = 0;
+                    context->isRunning = 0;
                 }
 
                 break;
@@ -81,22 +77,25 @@ static void Render(GameContext *context) {
     float ascent = GetFontAscent(renderContext, context->font, fontSize);
     float lineHeight = GetFontLineHeight(renderContext, context->font, fontSize);
     float y = renderContext->height - ascent;
+#define BUF_SIZE 128
+    char buf[BUF_SIZE];
+    snprintf(buf, BUF_SIZE, "FPS: %d", context->fpsCounter.fps);
     drawText(renderContext, context->font, fontSize, 0.0f, y,
-             "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+             buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
     drawText(renderContext, context->font, fontSize, 0.0f, y - lineHeight,
              "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 static int RunMainLoop(GameContext *context) {
-    GameState *state = &context->gameState;
+    context->isRunning = 1;
 
-    state->isRunning = 1;
-
-    while (state->isRunning) {
+    InitFPSCounter(&context->fpsCounter);
+    while (context->isRunning) {
         ProcessSystemEvent(context);
         Update(context);
         Render(context);
         SwapWindowBuffers(context->window);
+        CountOneFrame(&context->fpsCounter);
     }
 
     return 0;

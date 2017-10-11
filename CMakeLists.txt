@@ -44,6 +44,7 @@ add_executable(rtd
         src/image.c
         src/main.c
         src/renderer.c
+        src/time.c
         src/window.c
         ${clion_all_headers}
         ${shaders})
