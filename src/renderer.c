@@ -10,22 +10,33 @@
 #define STBTT_STATIC
 #include <stb_truetype.h>
 
-const char VERTEX_SHADER[] = {
-#include "shaders/test.vert.gen"
+const char DRAW_TEXTURE_VERTEX_SHADER[] = {
+#include "shaders/draw_texture.vert.gen"
 };
 
-const char FRAGMENT_SHADER[] = {
-#include "shaders/test.frag.gen"
+const char DRAW_TEXTURE_FRAGMENT_SHADER[] = {
+#include "shaders/draw_texture.frag.gen"
 };
 
-struct RenderContext {
-    T2 projection;
-    float pointToPixel;
+typedef struct DrawTextureVertexAttrib {
+    F pos[3];
+    F texCoord[2];
+    F color[4];
+    F tint[4];
+} DrawTextureVertexAttrib;
+
+typedef struct DrawTextureProgram {
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
     GLuint program;
     GLint MVPLocation;
+} DrawTextureProgram;
+
+struct RenderContext {
+    T2 projection;
+    float pointToPixel;
+    DrawTextureProgram drawTextureProgram;
 };
 
 typedef struct GLTexture {
@@ -36,13 +47,6 @@ typedef struct FontInternal {
     void *buf;
     stbtt_fontinfo info;
 } FontInternal;
-
-typedef struct VertexAttrib {
-    F pos[3];
-    F texCoord[2];
-    F color[4];
-    F tint[4];
-} VertexAttrib;
 
 static GLuint CompileGLShader(GLenum type, const char *source) {
     GLuint result = glCreateShader(type);
@@ -87,6 +91,44 @@ static GLuint CompileGLProgram(const char *vss, const char *fss) {
     }
 
     return result;
+}
+
+static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
+    // Setup VAO
+    glGenVertexArrays(1, &drawTextureProgram->vao);
+    glGenBuffers(1, &drawTextureProgram->vbo);
+    glGenBuffers(1, &drawTextureProgram->ebo);
+
+    glBindVertexArray(drawTextureProgram->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, drawTextureProgram->vbo);
+//    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawTextureProgram->ebo);
+//    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, pos));
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, texCoord));
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, color));
+    glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, tint));
+    glEnableVertexAttribArray(3);
+
+    glBindVertexArray(0);
+
+    // Compile Program
+    drawTextureProgram->program = CompileGLProgram(DRAW_TEXTURE_VERTEX_SHADER, DRAW_TEXTURE_FRAGMENT_SHADER);
+    if (!drawTextureProgram->program) {
+        exit(EXIT_FAILURE);
+    }
+    glUseProgram(drawTextureProgram->program);
+    glUniform1i(glGetUniformLocation(drawTextureProgram->program, "texture0"), 0);
+    drawTextureProgram->MVPLocation = glGetUniformLocation(drawTextureProgram->program, "MVP");
+
 }
 
 static void UploadImageToGPU(const unsigned char *src, int width, int height, int stride, ImageChannel channel, GLuint *tex) {
@@ -158,43 +200,17 @@ extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int
     // Render at linear color space
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-    // Setup VAO
-    glGenVertexArrays(1, &renderContext->vao);
-    glGenBuffers(1, &renderContext->vbo);
-    glGenBuffers(1, &renderContext->ebo);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-    glBindVertexArray(renderContext->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, renderContext->vbo);
-//    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->ebo);
-//    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, pos));
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, texCoord));
-    glEnableVertexAttribArray(1);
-
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, color));
-    glEnableVertexAttribArray(2);
-
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(VertexAttrib), (void *) offsetof(VertexAttrib, tint));
-    glEnableVertexAttribArray(3);
-
-    glBindVertexArray(0);
-
-    // Compile Program
-    renderContext->program = CompileGLProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-    if (!renderContext->program) {
-        free(renderContext);
-        return NULL;
-    }
-    glUseProgram(renderContext->program);
-    glUniform1i(glGetUniformLocation(renderContext->program, "texture0"), 0);
-    renderContext->MVPLocation = glGetUniformLocation(renderContext->program, "MVP");
+    SetupDrawTextureProgram(&renderContext->drawTextureProgram);
 
     return renderContext;
+}
+
+extern void ClearDrawing(RenderContext *renderContext) {
+    (void) renderContext;
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel) {
@@ -230,7 +246,7 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
 
     V2 texSize = MakeV2(tex->width, tex->height);
     BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
-    VertexAttrib vertices[] = {
+    DrawTextureVertexAttrib vertices[] = {
             dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
             dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom right
             dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom left
@@ -242,20 +258,20 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
             1, 2, 3    // second triangle
     };
 
-    glBindBuffer(GL_ARRAY_BUFFER, renderContext->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderContext->drawTextureProgram.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->drawTextureProgram.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
-    glUseProgram(renderContext->program);
+    glUseProgram(renderContext->drawTextureProgram.program);
     GLM4 MVP = MakeGLM4FromT2(renderContext->projection);
-    glUniformMatrix4fv(renderContext->MVPLocation, 1, GL_FALSE, MVP.m);
+    glUniformMatrix4fv(renderContext->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
 
-    glBindVertexArray(renderContext->vao);
+    glBindVertexArray(renderContext->drawTextureProgram.vao);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }

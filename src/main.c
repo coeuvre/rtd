@@ -127,14 +127,15 @@ static void Update(GameContext *context) {
 }
 
 static void Render(GameContext *context) {
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    RenderContext *renderContext = context->renderContext;
 
-    drawTexture(context->renderContext, MakeBBox2FromTexture(context->texBackground),
+    ClearDrawing(renderContext);
+
+    drawTexture(renderContext, MakeBBox2FromTexture(context->texBackground),
                 context->texBackground, MakeBBox2FromTexture(context->texBackground),
                 OneV4(), ZeroV4());
 
-    drawText(context->renderContext, context->font, 20.0f, 0.0f, WINDOW_HEIGHT - 20.0f,
+    drawText(renderContext, context->font, 20.0f, 0.0f, WINDOW_HEIGHT - 20.0f,
              "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 

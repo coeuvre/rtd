@@ -21,6 +21,8 @@ typedef struct Font {
 
 extern RenderContext *CreateRenderContext(int windowWidth, int windowHeight, int drawableWidth, int drawableHeight);
 
+extern void ClearDrawing(RenderContext *renderContext);
+
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
 // dstBBox is in point space

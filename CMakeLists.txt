@@ -27,8 +27,8 @@ add_executable(char2hex src/tools/char2hex.c)
 # Compile shaders
 set(shaders)
 set(shaders_source
-        src/shaders/test.frag
-        src/shaders/test.vert)
+        src/shaders/draw_texture.frag
+        src/shaders/draw_texture.vert)
 foreach (shader_source ${shaders_source})
     set(input ${CMAKE_SOURCE_DIR}/${shader_source})
     set(output ${input}.gen)
