@@ -49,6 +49,10 @@ static inline F LerpF(F a, F t, F b) {
     return result;
 }
 
+static inline F NextPow2F(F n) {
+    return powf(2.0f, CeilF(log2f(n)));
+}
+
 //
 // 2D Vector
 //

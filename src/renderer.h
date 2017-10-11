@@ -11,6 +11,8 @@ typedef struct RenderContext RenderContext;
 typedef struct Texture {
     int width;
     int height;
+    int actualWidth;
+    int actualHeight;
     void *internal;
 } Texture;
 

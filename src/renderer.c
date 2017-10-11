@@ -101,10 +101,10 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
 
     glBindVertexArray(drawTextureProgram->vao);
     glBindBuffer(GL_ARRAY_BUFFER, drawTextureProgram->vbo);
-//    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawTextureProgram->ebo);
-//    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, pos));
     glEnableVertexAttribArray(0);
@@ -131,56 +131,67 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
 
 }
 
-static void UploadImageToGPU(const unsigned char *src, int width, int height, int stride, ImageChannel channel, GLuint *tex) {
-    int dstStride = (int) (CeilF(stride / 4.0f) * 4.0f);
+static void UploadImageToGPU(Texture *tex, const unsigned char *data, int width, int height, int stride, ImageChannel channel) {
+    GLTexture *glTex = tex->internal;
 
-    assert(stride <= dstStride);
+    glGenTextures(1, &glTex->id);
+    glBindTexture(GL_TEXTURE_2D, glTex->id);
 
-    unsigned char *data = malloc((size_t) dstStride * height);
+    tex->actualWidth = (int) NextPow2F(width);
+    tex->actualHeight = height;
 
-    // Flip image vertically
-    unsigned char *dstRow = data;
-    const unsigned char *srcRow = src + stride * (height - 1);
-
-    for (int y = 0; y < height; ++y) {
-        memcpy(dstRow, srcRow, (size_t) stride);
-        dstRow += dstStride;
-        srcRow -= stride;
-    }
-
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_2D, *tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
+    int texStride = 0;
+    GLint numberOfPixels = 0;
     GLint internalFormat = 0;
     GLenum format = 0;
-    GLint numberOfPixels = 0;
 
     switch (channel) {
-        case IMAGE_CHANNEL_RGBA:
+        case IMAGE_CHANNEL_RGBA: {
+            texStride = tex->actualWidth * 4;
+            numberOfPixels = tex->actualWidth;
+
             internalFormat = GL_SRGB8_ALPHA8;
             format = GL_RGBA;
-            numberOfPixels = dstStride / 4;
-            break;
+        } break;
         case IMAGE_CHANNEL_A: {
+            texStride = (int) (CeilF(tex->actualWidth / 4.0f) * 4.0f);
+            numberOfPixels = texStride;
+
             internalFormat = GL_R8;
             format = GL_RED;
-            numberOfPixels = dstStride;
 
             GLint swizzleMask[] = { GL_ONE, GL_ONE, GL_ONE, GL_RED };
             glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
         } break;
     }
 
-    assert(dstStride % 4 == 0);
+    assert(stride <= texStride);
+    assert(tex->actualWidth % 2 == 0);
+    assert(texStride % 4 == 0);
+
+    size_t texBufLen = (size_t) texStride * tex->actualHeight;
+    unsigned char *texBuf = malloc(texBufLen);
+    memset(texBuf, 0, texBufLen);
+
+    unsigned char *dstRow = texBuf;
+    const unsigned char *srcRow = data + stride * (height - 1);
+
+    // Flip image vertically
+    for (int y = 0; y < height; ++y) {
+        memcpy(dstRow, srcRow, (size_t) stride);
+        dstRow += texStride;
+        srcRow -= stride;
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, numberOfPixels);
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, tex->actualWidth, tex->actualHeight, 0, format, GL_UNSIGNED_BYTE, texBuf);
 
-    free(data);
+    free(texBuf);
 }
 
 
@@ -222,7 +233,7 @@ extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsi
     tex->height = height;
     tex->internal = glTex;
 
-    UploadImageToGPU(data, width, height, stride, channel, &glTex->id);
+    UploadImageToGPU(tex, data, width, height, stride, channel);
 
     return tex;
 }
@@ -244,7 +255,7 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
 extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
     GLTexture *glTex = tex->internal;
 
-    V2 texSize = MakeV2(tex->width, tex->height);
+    V2 texSize = MakeV2(tex->actualWidth, tex->actualHeight);
     BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
     DrawTextureVertexAttrib vertices[] = {
             dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
