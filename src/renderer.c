@@ -33,11 +33,9 @@ typedef struct DrawTextureProgram {
     GLint MVPLocation;
 } DrawTextureProgram;
 
-struct RenderContext {
-    T2 projection;
-    float pointToPixel;
+typedef struct RenderContextInternal {
     DrawTextureProgram drawTextureProgram;
-};
+} RenderContextInternal;
 
 typedef struct GLTexture {
     GLuint id;
@@ -197,8 +195,13 @@ static void UploadImageToGPU(Texture *tex, const unsigned char *data, int width,
 
 extern RenderContext *CreateRenderContext(int width, int height, float pointToPixel) {
     RenderContext *renderContext = malloc(sizeof(RenderContext));
+    RenderContextInternal *renderContextInternal = malloc(sizeof(RenderContextInternal));
+    renderContext->internal = renderContextInternal;
 
+    renderContext->width = width;
+    renderContext->height = height;
     renderContext->pointToPixel = pointToPixel;
+    renderContext->pixelToPoint = 1.0f / pointToPixel;
 
     renderContext->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
                                       MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
@@ -213,7 +216,7 @@ extern RenderContext *CreateRenderContext(int width, int height, float pointToPi
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-    SetupDrawTextureProgram(&renderContext->drawTextureProgram);
+    SetupDrawTextureProgram(&renderContextInternal->drawTextureProgram);
 
     return renderContext;
 }
@@ -257,6 +260,7 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
         return;
     }
 
+    RenderContextInternal *renderContextInternal = renderContext->internal;
     GLTexture *glTex = tex->internal;
 
     V2 texSize = MakeV2(tex->actualWidth, tex->actualHeight);
@@ -273,20 +277,20 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
             1, 2, 3    // second triangle
     };
 
-    glBindBuffer(GL_ARRAY_BUFFER, renderContext->drawTextureProgram.vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderContextInternal->drawTextureProgram.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContext->drawTextureProgram.ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContextInternal->drawTextureProgram.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
-    glUseProgram(renderContext->drawTextureProgram.program);
+    glUseProgram(renderContextInternal->drawTextureProgram.program);
     GLM4 MVP = MakeGLM4FromT2(renderContext->projection);
-    glUniformMatrix4fv(renderContext->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
+    glUniformMatrix4fv(renderContextInternal->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
 
-    glBindVertexArray(renderContext->drawTextureProgram.vao);
+    glBindVertexArray(renderContextInternal->drawTextureProgram.vao);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
@@ -320,6 +324,43 @@ extern Font *LoadFont(RenderContext *renderContext, const char *filename) {
     return font;
 }
 
+extern float GetFontAscent(RenderContext *renderContext, Font *font, float size) {
+    if (!font) {
+        return 0.0f;
+    }
+
+    FontInternal *fontInternal = font->internal;
+    stbtt_fontinfo *info = &fontInternal->info;
+
+    float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
+
+    int ascentInt;
+    stbtt_GetFontVMetrics(info, &ascentInt, 0, 0);
+
+    float ascent = ascentInt * scale * renderContext->pixelToPoint;
+    return ascent;
+}
+
+extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float size) {
+    if (!font) {
+        return 0.0f;
+    }
+
+    FontInternal *fontInternal = font->internal;
+    stbtt_fontinfo *info = &fontInternal->info;
+
+    float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
+
+    int ascentInt, descentInt, lineGapInt;
+    stbtt_GetFontVMetrics(info, &ascentInt, &descentInt, &lineGapInt);
+
+    float ascent = ascentInt * scale * renderContext->pixelToPoint;
+    float descent = descentInt * scale * renderContext->pixelToPoint;
+    float lineGap = lineGapInt * scale * renderContext->pixelToPoint;
+
+    return ascent - descent + lineGap;
+}
+
 extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
     if (!font) {
         return;
@@ -329,12 +370,6 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
     stbtt_fontinfo *info = &fontInternal->info;
 
     float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
-//
-//    int ascentInt, descentInt, lineGap;
-//    stbtt_GetFontVMetrics(font, &ascentInt, &descentInt, &lineGap);
-//
-//    float ascent = ascentInt * scale;
-//    float descent = descentInt * scale;
 
     for (int i = 0; i < strlen(text); ++i) {
         int codePoint = text[i];
@@ -343,10 +378,10 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
         unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xoff, &yoff);
         if (bitmap != NULL) {
             Texture *texture = CreateTextureFromMemory(renderContext, bitmap, width, height, width, IMAGE_CHANNEL_A);
-            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff / renderContext->pointToPixel,
-                                                               y - (height + yoff) / renderContext->pointToPixel),
-                                                        MakeV2(width / renderContext->pointToPixel,
-                                                               height / renderContext->pointToPixel)),
+            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff * renderContext->pixelToPoint,
+                                                               y - (height + yoff) * renderContext->pixelToPoint),
+                                                        MakeV2(width * renderContext->pixelToPoint,
+                                                               height * renderContext->pixelToPoint)),
                         texture, MakeBBox2FromTexture(texture), color, ZeroV4());
             DestroyTexture(renderContext, &texture);
             stbtt_FreeBitmap(bitmap, 0);
@@ -354,12 +389,12 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
 
         int axInt;
         stbtt_GetCodepointHMetrics(info, codePoint, &axInt, 0);
-        float ax = axInt * scale / renderContext->pointToPixel;
+        float ax = axInt * scale * renderContext->pixelToPoint;
 
         x += ax;
 
         int kernInt = stbtt_GetCodepointKernAdvance(info, codePoint, text[i + 1]);
-        float kern = kernInt * scale / renderContext->pointToPixel;
+        float kern = kernInt * scale * renderContext->pixelToPoint;
 
         x += kern;
     }

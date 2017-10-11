@@ -6,7 +6,14 @@
 #include "cgmath.h"
 #include "image.h"
 
-typedef struct RenderContext RenderContext;
+typedef struct RenderContext {
+    float width;
+    float height;
+    float pointToPixel;
+    float pixelToPoint;
+    T2 projection;
+    void *internal;
+} RenderContext;
 
 typedef struct Texture {
     int width;
@@ -31,6 +38,8 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
 extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
 
 extern Font *LoadFont(RenderContext *renderContext, const char *filename);
+extern float GetFontAscent(RenderContext *renderContext, Font *font, float size);
+extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float size);
 // size, x, y is in point space
 extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color);
 

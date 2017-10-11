@@ -77,7 +77,13 @@ static void Render(GameContext *context) {
                 context->texBackground, MakeBBox2FromTexture(context->texBackground),
                 OneV4(), ZeroV4());
 
-    drawText(renderContext, context->font, 20.0f, 0.0f, WINDOW_HEIGHT - 20.0f,
+    float fontSize = 20.0f;
+    float ascent = GetFontAscent(renderContext, context->font, fontSize);
+    float lineHeight = GetFontLineHeight(renderContext, context->font, fontSize);
+    float y = renderContext->height - ascent;
+    drawText(renderContext, context->font, fontSize, 0.0f, y,
+             "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    drawText(renderContext, context->font, fontSize, 0.0f, y - lineHeight,
              "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
