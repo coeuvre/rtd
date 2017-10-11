@@ -31,9 +31,6 @@ static void SetupGame(GameContext *context) {
     context->renderContext = CreateRenderContext(context->window->width, context->window->height, context->window->drawableWidth / context->window->width);
 
     context->texBackground = LoadTexture(context->renderContext, "assets/scene1.png");
-    if (context->texBackground == NULL) {
-        exit(EXIT_FAILURE);
-    }
 
 #ifdef RTD_WIN32
     char *font = "C:/Windows/Fonts/Arial.ttf";
@@ -41,9 +38,6 @@ static void SetupGame(GameContext *context) {
     char *font = "/Library/Fonts/Arial.ttf";
 #endif
     context->font = LoadFont(context->renderContext, font);
-    if (context->font == NULL) {
-        exit(EXIT_FAILURE);
-    }
 }
 
 static void ProcessSystemEvent(GameContext *context) {

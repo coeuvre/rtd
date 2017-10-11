@@ -238,6 +238,10 @@ static inline BBox2 MakeBBox2MinSize(V2 min, V2 size) {
     return result;
 }
 
+static inline BBox2 ZeroBBox2(void) {
+    return MakeBBox2(ZeroV2(), ZeroV2());
+}
+
 //
 // 2D Linear System
 //

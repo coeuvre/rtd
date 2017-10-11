@@ -253,6 +253,10 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
 }
 
 extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
+    if (!tex) {
+        return;
+    }
+
     GLTexture *glTex = tex->internal;
 
     V2 texSize = MakeV2(tex->actualWidth, tex->actualHeight);
@@ -317,6 +321,10 @@ extern Font *LoadFont(RenderContext *renderContext, const char *filename) {
 }
 
 extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
+    if (!font) {
+        return;
+    }
+
     FontInternal *fontInternal = font->internal;
     stbtt_fontinfo *info = &fontInternal->info;
 

@@ -35,6 +35,10 @@ extern Font *LoadFont(RenderContext *renderContext, const char *filename);
 extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color);
 
 static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
+    if (!tex) {
+        return ZeroBBox2();
+    }
+
     BBox2 result = MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(tex->width, tex->height));
     return result;
 }
