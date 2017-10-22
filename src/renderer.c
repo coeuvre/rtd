@@ -19,7 +19,10 @@ const char DRAW_TEXTURE_FRAGMENT_SHADER[] = {
 };
 
 typedef struct DrawTextureVertexAttrib {
-    F pos[3];
+    F transform0[3];
+    F transform1[3];
+    F transform2[3];
+    F pos[2];
     F texCoord[2];
     F color[4];
     F tint[4];
@@ -104,17 +107,26 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawTextureProgram->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, pos));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, transform0));
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, texCoord));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, transform1));
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, color));
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, transform2));
     glEnableVertexAttribArray(2);
 
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, tint));
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, pos));
     glEnableVertexAttribArray(3);
+
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, texCoord));
+    glEnableVertexAttribArray(4);
+
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, color));
+    glEnableVertexAttribArray(5);
+
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, tint));
+    glEnableVertexAttribArray(6);
 
     glBindVertexArray(0);
 
@@ -255,21 +267,23 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
     *ptr = NULL;
 }
 
-extern void DrawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
+extern void DrawTexture(RenderContext *rc, T2 transform, BBox2 dstBBox,
+                        Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
     if (!tex) {
         return;
     }
 
-    RenderContextInternal *renderContextInternal = renderContext->internal;
+    RenderContextInternal *renderContextInternal = rc->internal;
     GLTexture *glTex = tex->internal;
 
     V2 texSize = MakeV2((float) tex->actualWidth, (float) tex->actualHeight);
     BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
+    GLM3 t = MakeGLM3FromT2(transform);
     DrawTextureVertexAttrib vertices[] = {
-            dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
-            dstBBox.max.x, dstBBox.min.y, 0.0f, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom right
-            dstBBox.min.x, dstBBox.min.y, 0.0f, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom left
-            dstBBox.min.x, dstBBox.max.y, 0.0f, texBBox.min.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top left
+            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.max.y, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
+            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.min.y, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom right
+            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.min.y, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom left
+            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.max.y, texBBox.min.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
@@ -287,8 +301,8 @@ extern void DrawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
     glUseProgram(renderContextInternal->drawTextureProgram.program);
-    GLM4 MVP = MakeGLM4FromT2(renderContext->projection);
-    glUniformMatrix4fv(renderContextInternal->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
+    GLM3 MVP = MakeGLM3FromT2(rc->projection);
+    glUniformMatrix3fv(renderContextInternal->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
 
     glBindVertexArray(renderContextInternal->drawTextureProgram.vao);
 
@@ -361,7 +375,7 @@ extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float s
     return ascent - descent + lineGap;
 }
 
-extern void DrawLineText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
+extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, float y, const char *text, V4 color) {
     if (!font) {
         return;
     }
@@ -369,7 +383,7 @@ extern void DrawLineText(RenderContext *renderContext, Font *font, float size, f
     FontInternal *fontInternal = font->internal;
     stbtt_fontinfo *info = &fontInternal->info;
 
-    float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
+    float scale = stbtt_ScaleForPixelHeight(info, size * rc->pointToPixel);
 
     for (size_t i = 0; i < strlen(text); ++i) {
         int codePoint = text[i];
@@ -377,24 +391,27 @@ extern void DrawLineText(RenderContext *renderContext, Font *font, float size, f
         int width, height, xOff, yOff;
         unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xOff, &yOff);
         if (bitmap != NULL) {
-            Texture *texture = CreateTextureFromMemory(renderContext, bitmap, width, height, width, IMAGE_CHANNEL_A);
-            DrawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xOff * renderContext->pixelToPoint,
-                                                               y - (height + yOff) * renderContext->pixelToPoint),
-                                                        MakeV2(width * renderContext->pixelToPoint,
-                                                               height * renderContext->pixelToPoint)),
-                        texture, MakeBBox2FromTexture(texture), color, ZeroV4());
-            DestroyTexture(renderContext, &texture);
+            Texture *texture = CreateTextureFromMemory(rc, bitmap, width, height, width, IMAGE_CHANNEL_A);
+            DrawTexture(rc, IdentityT2(),
+                        MakeBBox2MinSize(MakeV2(x + xOff * rc->pixelToPoint,
+                                                y - (height + yOff) *
+                                                    rc->pixelToPoint),
+                                         MakeV2(width * rc->pixelToPoint,
+                                                height * rc->pixelToPoint)),
+                        texture, MakeBBox2FromTexture(texture), color,
+                        ZeroV4());
+            DestroyTexture(rc, &texture);
             stbtt_FreeBitmap(bitmap, 0);
         }
 
         int axInt;
         stbtt_GetCodepointHMetrics(info, codePoint, &axInt, 0);
-        float ax = axInt * scale * renderContext->pixelToPoint;
+        float ax = axInt * scale * rc->pixelToPoint;
 
         x += ax;
 
         int kernInt = stbtt_GetCodepointKernAdvance(info, codePoint, text[i + 1]);
-        float kern = kernInt * scale * renderContext->pixelToPoint;
+        float kern = kernInt * scale * rc->pixelToPoint;
 
         x += kern;
     }

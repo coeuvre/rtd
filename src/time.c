@@ -6,7 +6,7 @@ extern Tick GetCurrentTick(void) {
     return SDL_GetPerformanceCounter();
 }
 
-extern double TickToSecond(Tick tick) {
+extern float TickToSecond(Tick tick) {
     return tick * 1.0f / SDL_GetPerformanceFrequency();
 }
 

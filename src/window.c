@@ -93,6 +93,7 @@ extern Window *CreateGameWindow(const char *title, int width, int height) {
 
     SetupWindowDPI(window);
 
+    printf("Window size: %dx%d\n", window->width, window->height);
     printf("DPI Scale factor: %f\n", window->pointToPixel);
 
     return window;

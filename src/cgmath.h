@@ -425,33 +425,25 @@ static inline V4 OneV4(void) {
 
 typedef union GLM4 {
     struct {
-        F m00; F m10; F m20; F m30;
-        F m01; F m11; F m21; F m31;
-        F m02; F m12; F m22; F m32;
-        F m03; F m13; F m23; F m33;
+        F m00; F m10; F m20;
+        F m01; F m11; F m21;
+        F m02; F m12; F m22;
     };
 
     F m[9];
-} GLM4;
+} GLM3;
 
-static inline GLM4 MakeGLM4FromT2(T2 t) {
-    GLM4 result;
+static inline GLM3 MakeGLM3FromT2(T2 t) {
+    GLM3 result;
     result.m00 = t.m00;
     result.m10 = t.m10;
     result.m20 = 0.0f;
-    result.m30 = 0.0f;
     result.m01 = t.m01;
     result.m11 = t.m11;
     result.m21 = 0.0f;
-    result.m31 = 0.0f;
-    result.m02 = 0.0f;
-    result.m12 = 0.0f;
+    result.m02 = t.m02;
+    result.m12 = t.m12;
     result.m22 = 1.0f;
-    result.m32 = 0.0f;
-    result.m03 = t.m02;
-    result.m13 = t.m12;
-    result.m23 = 0.0f;
-    result.m33 = 1.0f;
     return result;
 }
 

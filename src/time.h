@@ -6,7 +6,7 @@
 typedef uint64_t Tick;
 
 extern Tick GetCurrentTick(void);
-extern double TickToSecond(Tick tick);
+extern float TickToSecond(Tick tick);
 
 typedef struct FPSCounter {
     Tick lastTick;
