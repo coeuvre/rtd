@@ -67,7 +67,7 @@ static void Render(GameContext *c) {
 
     ClearDrawing(rc);
 
-    drawTexture(rc, MakeBBox2FromTexture(c->texBackground),
+    DrawTexture(rc, MakeBBox2FromTexture(c->texBackground),
                 c->texBackground, MakeBBox2FromTexture(c->texBackground),
                 OneV4(), ZeroV4());
 

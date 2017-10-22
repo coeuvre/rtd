@@ -35,7 +35,7 @@ extern void ClearDrawing(RenderContext *renderContext);
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
 // dstBBox is in point space
-extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
+extern void DrawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
 
 extern Font *LoadFont(RenderContext *renderContext, const char *filename);
 extern float GetFontAscent(RenderContext *renderContext, Font *font, float size);

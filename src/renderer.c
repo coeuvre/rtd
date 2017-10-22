@@ -255,7 +255,7 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
     *ptr = NULL;
 }
 
-extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
+extern void DrawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
     if (!tex) {
         return;
     }
@@ -374,12 +374,12 @@ extern void DrawLineText(RenderContext *renderContext, Font *font, float size, f
     for (size_t i = 0; i < strlen(text); ++i) {
         int codePoint = text[i];
 
-        int width, height, xoff, yoff;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xoff, &yoff);
+        int width, height, xOff, yOff;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(info, scale, scale, codePoint, &width, &height, &xOff, &yOff);
         if (bitmap != NULL) {
             Texture *texture = CreateTextureFromMemory(renderContext, bitmap, width, height, width, IMAGE_CHANNEL_A);
-            drawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xoff * renderContext->pixelToPoint,
-                                                               y - (height + yoff) * renderContext->pixelToPoint),
+            DrawTexture(renderContext, MakeBBox2MinSize(MakeV2(x + xOff * renderContext->pixelToPoint,
+                                                               y - (height + yOff) * renderContext->pixelToPoint),
                                                         MakeV2(width * renderContext->pixelToPoint,
                                                                height * renderContext->pixelToPoint)),
                         texture, MakeBBox2FromTexture(texture), color, ZeroV4());
