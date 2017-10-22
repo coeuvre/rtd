@@ -1,5 +1,12 @@
 #include "window.h"
 
+#ifdef PLATFORM_WIN32
+#include <windows.h>
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <SDL2/SDL.h>
 
 #include <glad/glad.h>
@@ -9,20 +16,44 @@ typedef struct WindowInternal {
     SDL_GLContext *sdlGLContext;
 } WindowInternal;
 
-extern Window *CreateGameWindow(const char *title, int width, int height) {
-    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
-        if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
-            printf("Failed to init subsystem SDL_INIT_VIDEO: %s\n", SDL_GetError());
-            exit(EXIT_FAILURE);
-        }
-    }
+extern int _stdcall SetProcessDPIAware(void);
 
+static void SetupWindowDPI(Window *window) {
+#ifdef PLATFORM_WIN32
+#else
+    WindowInternal *windowInternal = window->internal;
+    int drawableWidth, drawableHeight;
+    SDL_GL_GetDrawableSize(windowInternal->sdlWindow, &drawableWidth, &drawableHeight);
+    window->pointToPixel = drawableWidth * 1.0f / window->width;
+#endif
+}
+
+extern Window *CreateGameWindow(const char *title, int width, int height) {
     Window *window = malloc(sizeof(Window));
     WindowInternal *windowInternal = malloc(sizeof(WindowInternal));
     window->title = title;
     window->width = width;
     window->height = height;
     window->internal = windowInternal;
+
+#ifdef PLATFORM_WIN32
+    SetProcessDPIAware();
+
+    HDC screen = GetDC(0);
+    int dpiX = GetDeviceCaps(screen, LOGPIXELSX);
+    ReleaseDC (0, screen);
+
+    window->pointToPixel = dpiX / 96.0f;
+    window->width = (int) (window->width * window->pointToPixel);
+    window->height = (int) (window->height * window->pointToPixel);
+#endif
+
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
+        if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
+            printf("Failed to init subsystem SDL_INIT_VIDEO: %s\n", SDL_GetError());
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // Use this function to set an OpenGL window attribute before window creation.
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -32,7 +63,8 @@ extern Window *CreateGameWindow(const char *title, int width, int height) {
 
     windowInternal->sdlWindow = SDL_CreateWindow(
             title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
+            window->width, window->height,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
 
     if (!windowInternal->sdlWindow) {
         printf("Failed to create SDL window: %s\n", SDL_GetError());
@@ -59,8 +91,9 @@ extern Window *CreateGameWindow(const char *title, int width, int height) {
 
     printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-    SDL_GL_GetDrawableSize(windowInternal->sdlWindow, &window->drawableWidth, &window->drawableHeight);
-    printf("Drawable size: %dx%d\n", window->drawableWidth, window->drawableHeight);
+    SetupWindowDPI(window);
+
+    printf("DPI Scale factor: %f\n", window->pointToPixel);
 
     return window;
 }

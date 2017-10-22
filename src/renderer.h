@@ -41,20 +41,19 @@ extern Font *LoadFont(RenderContext *renderContext, const char *filename);
 extern float GetFontAscent(RenderContext *renderContext, Font *font, float size);
 extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float size);
 // size, x, y is in point space
-extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color);
+extern void DrawLineText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color);
 
 static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
     if (!tex) {
         return ZeroBBox2();
     }
 
-    BBox2 result = MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(tex->width, tex->height));
+    BBox2 result = MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2((float) tex->width, (float) tex->height));
     return result;
 }
 
 static inline Texture *CreateTextureFromImage(RenderContext *renderContext, Image *image) {
-    return CreateTextureFromMemory(renderContext, image->data, image->width, image->height, image->stride,
-                                   image->channel);
+    return CreateTextureFromMemory(renderContext, image->data, image->width, image->height, image->stride, image->channel);
 }
 
 static inline Texture *LoadTexture(RenderContext *renderContext, const char *filename) {

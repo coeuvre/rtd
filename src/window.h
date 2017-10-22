@@ -5,8 +5,7 @@ typedef struct Window {
     const char *title;
     int width;
     int height;
-    int drawableWidth;
-    int drawableHeight;
+    float pointToPixel;
     void *internal;
 } Window;
 

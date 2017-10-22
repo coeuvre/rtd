@@ -135,7 +135,7 @@ static void UploadImageToGPU(Texture *tex, const unsigned char *data, int width,
     glGenTextures(1, &glTex->id);
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
-    tex->actualWidth = (int) NextPow2F(width);
+    tex->actualWidth = (int) NextPow2F((float) width);
     tex->actualHeight = height;
 
     int texStride = 0;
@@ -198,8 +198,8 @@ extern RenderContext *CreateRenderContext(int width, int height, float pointToPi
     RenderContextInternal *renderContextInternal = malloc(sizeof(RenderContextInternal));
     renderContext->internal = renderContextInternal;
 
-    renderContext->width = width;
-    renderContext->height = height;
+    renderContext->width = (float) width;
+    renderContext->height = (float) height;
     renderContext->pointToPixel = pointToPixel;
     renderContext->pixelToPoint = 1.0f / pointToPixel;
 
@@ -263,7 +263,7 @@ extern void drawTexture(RenderContext *renderContext, BBox2 dstBBox, Texture *te
     RenderContextInternal *renderContextInternal = renderContext->internal;
     GLTexture *glTex = tex->internal;
 
-    V2 texSize = MakeV2(tex->actualWidth, tex->actualHeight);
+    V2 texSize = MakeV2((float) tex->actualWidth, (float) tex->actualHeight);
     BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
     DrawTextureVertexAttrib vertices[] = {
             dstBBox.max.x, dstBBox.max.y, 0.0f, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
@@ -361,7 +361,7 @@ extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float s
     return ascent - descent + lineGap;
 }
 
-extern void drawText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
+extern void DrawLineText(RenderContext *renderContext, Font *font, float size, float x, float y, const char *text, V4 color) {
     if (!font) {
         return;
     }
@@ -371,7 +371,7 @@ extern void drawText(RenderContext *renderContext, Font *font, float size, float
 
     float scale = stbtt_ScaleForPixelHeight(info, size * renderContext->pointToPixel);
 
-    for (int i = 0; i < strlen(text); ++i) {
+    for (size_t i = 0; i < strlen(text); ++i) {
         int codePoint = text[i];
 
         int width, height, xoff, yoff;

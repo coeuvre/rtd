@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include <SDL2/SDL.h>
 
@@ -13,7 +12,7 @@
 
 typedef struct GameContext {
     Window *window;
-    RenderContext *renderContext;
+    RenderContext *rc;
     FPSCounter fpsCounter;
     int isRunning;
 
@@ -22,35 +21,34 @@ typedef struct GameContext {
 } GameContext;
 
 
-static void SetupGame(GameContext *context) {
+static void SetupGame(GameContext *c) {
     SDL_Init(0);
 
-    context->window = CreateGameWindow("RTD", WINDOW_WIDTH, WINDOW_HEIGHT);
-    context->renderContext = CreateRenderContext(context->window->width, context->window->height, context->window->drawableWidth / context->window->width);
+    c->window = CreateGameWindow("RTD", WINDOW_WIDTH, WINDOW_HEIGHT);
+    c->rc = CreateRenderContext(WINDOW_WIDTH, WINDOW_HEIGHT, c->window->pointToPixel);
+    c->texBackground = LoadTexture(c->rc, "assets/scene1.png");
 
-    context->texBackground = LoadTexture(context->renderContext, "assets/scene1.png");
-
-#ifdef RTD_WIN32
+#ifdef PLATFORM_WIN32
     char *font = "C:/Windows/Fonts/Arial.ttf";
 #else
     char *font = "/Library/Fonts/Arial.ttf";
 #endif
-    context->font = LoadFont(context->renderContext, font);
+    c->font = LoadFont(c->rc, font);
 }
 
-static void ProcessSystemEvent(GameContext *context) {
+static void ProcessSystemEvent(GameContext *c) {
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
             case SDL_QUIT: {
-                context->isRunning = 0;
+                c->isRunning = 0;
                 break;
             }
 
             case SDL_KEYDOWN: {
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    context->isRunning = 0;
+                    c->isRunning = 0;
                 }
 
                 break;
@@ -64,38 +62,38 @@ static void ProcessSystemEvent(GameContext *context) {
 static void Update(GameContext *context) {
 }
 
-static void Render(GameContext *context) {
-    RenderContext *renderContext = context->renderContext;
+static void Render(GameContext *c) {
+    RenderContext *rc = c->rc;
 
-    ClearDrawing(renderContext);
+    ClearDrawing(rc);
 
-    drawTexture(renderContext, MakeBBox2FromTexture(context->texBackground),
-                context->texBackground, MakeBBox2FromTexture(context->texBackground),
+    drawTexture(rc, MakeBBox2FromTexture(c->texBackground),
+                c->texBackground, MakeBBox2FromTexture(c->texBackground),
                 OneV4(), ZeroV4());
 
     float fontSize = 20.0f;
-    float ascent = GetFontAscent(renderContext, context->font, fontSize);
-    float lineHeight = GetFontLineHeight(renderContext, context->font, fontSize);
-    float y = renderContext->height - ascent;
+    float ascent = GetFontAscent(rc, c->font, fontSize);
+    float lineHeight = GetFontLineHeight(rc, c->font, fontSize);
+    float y = rc->height - ascent;
 #define BUF_SIZE 128
     char buf[BUF_SIZE];
-    snprintf(buf, BUF_SIZE, "FPS: %d", context->fpsCounter.fps);
-    drawText(renderContext, context->font, fontSize, 0.0f, y,
-             buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
-    drawText(renderContext, context->font, fontSize, 0.0f, y - lineHeight,
-             "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    snprintf(buf, BUF_SIZE, "FPS: %d", c->fpsCounter.fps);
+    DrawLineText(rc, c->font, fontSize, 0.0f, y,
+                 buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    DrawLineText(rc, c->font, fontSize, 0.0f, y - lineHeight,
+                 "Hello World! HLIJijgklWAV", MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
-static int RunMainLoop(GameContext *context) {
-    context->isRunning = 1;
+static int RunMainLoop(GameContext *c) {
+    c->isRunning = 1;
 
-    InitFPSCounter(&context->fpsCounter);
-    while (context->isRunning) {
-        ProcessSystemEvent(context);
-        Update(context);
-        Render(context);
-        SwapWindowBuffers(context->window);
-        CountOneFrame(&context->fpsCounter);
+    InitFPSCounter(&c->fpsCounter);
+    while (c->isRunning) {
+        ProcessSystemEvent(c);
+        Update(c);
+        Render(c);
+        SwapWindowBuffers(c->window);
+        CountOneFrame(&c->fpsCounter);
     }
 
     return 0;
