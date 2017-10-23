@@ -86,20 +86,15 @@ struct GameNode {
     void *components[COMPONENT_NAME_COUNT];
 };
 
+#define SetGameNodeComponent(node, component, ptr) ((node)->components[COMPONENT_NAME_##component] = (ptr))
+#define GetGameNodeComponent(node, component) ((component *) ((node)->components[COMPONENT_NAME_##component]))
+
 GameNode *CreateGameNode(GameContext *c, const char *name) {
     GameNode *node = malloc(sizeof(GameNode));
+    memset(node, 0, sizeof(GameNode));
+
     node->c = c;
     node->name = name;
-    node->parent = NULL;
-    node->prev = NULL;
-    node->next = NULL;
-    node->childrenCount = 0;
-    node->firstChild = NULL;
-    node->lastChild = NULL;
-
-    for (int i = 0; i < COMPONENT_NAME_COUNT; ++i) {
-        node->components[i] = NULL;
-    }
 
     return node;
 }
@@ -121,20 +116,20 @@ void AppendGameNodeChild(GameNode *parent, GameNode *child) {
     ++parent->childrenCount;
 }
 
-T2 GetGameNodeTransform(GameNode *node) {
-    if (node->components[COMPONENT_NAME_TransformComponent] == NULL) {
+T2 GetGameNodeWorldTransform(GameNode *node) {
+    if (GetGameNodeComponent(node, TransformComponent) == NULL) {
         return IdentityT2();
     }
 
     T2 parentTransform;
     if (node->parent) {
-        parentTransform = GetGameNodeTransform(node->parent);
+        parentTransform = GetGameNodeWorldTransform(node->parent);
     } else {
         parentTransform = IdentityT2();
     }
 
-    TransformComponent *transformComponent = node->components[COMPONENT_NAME_TransformComponent];
-    return DotT2(transformComponent->transform, parentTransform);
+    TransformComponent *transform = GetGameNodeComponent(node, TransformComponent);
+    return DotT2(transform->transform, parentTransform);
 }
 
 GameNodeTreeWalker *SetupGameNodeTreeWalker(GameContext *c) {
@@ -170,28 +165,28 @@ void WalkToNextGameNode(GameNodeTreeWalker *walker) {
 }
 
 static void OnFixedUpdateBackground(GameNode *node, void *data, float delta) {
-//    TransformComponent *transform = node->components[COMPONENT_NAME_TransformComponent];
-//    transform->transform = TranslateT2(MakeV2(-10.0f * delta, 0.0f), transform->transform);
+//    TransformComponent *transform = GetGameNodeComponent(node, TransformComponent);
+//    transform->transform = TranslateT2(MakeV2(-40.0f * delta, 0.0f), transform->transform);
 }
 
 static GameNode *CreateBackgroundGameNode(GameContext *c) {
     GameNode *node = CreateGameNode(c, "Background");
 
     ScriptComponent *script = malloc(sizeof(ScriptComponent));
-    node->components[COMPONENT_NAME_ScriptComponent] = script;
     script->data = NULL;
     script->onReady = NULL;
     script->onFixedUpdate = OnFixedUpdateBackground;
+    SetGameNodeComponent(node, ScriptComponent, script);
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    node->components[COMPONENT_NAME_TransformComponent] = transform;
     transform->transform = IdentityT2();
+    SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
-    node->components[COMPONENT_NAME_SpriteComponent] = sprite;
     sprite->texturePath = "assets/sprites/background_day.png";
     sprite->isRegionEnabled = 0;
     sprite->region = ZeroBBox2();
+    SetGameNodeComponent(node, SpriteComponent, sprite);
 
     return node;
 }
@@ -200,14 +195,14 @@ static GameNode *CreateBirdGameNode(GameContext *c) {
     GameNode *node = CreateGameNode(c, "Bird");
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    node->components[COMPONENT_NAME_TransformComponent] = transform;
     transform->transform = IdentityT2();
+    SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
-    node->components[COMPONENT_NAME_SpriteComponent] = sprite;
     sprite->texturePath = "assets/sprites/bird_blue_0.png";
     sprite->isRegionEnabled = 0;
     sprite->region = ZeroBBox2();
+    SetGameNodeComponent(node, SpriteComponent, sprite);
 
     return node;
 }
@@ -264,7 +259,7 @@ static void ProcessSystemEvent(GameContext *c) {
 }
 
 static void DoScriptFixedUpdate(GameNode *node, float delta) {
-    ScriptComponent *script = node->components[COMPONENT_NAME_ScriptComponent];
+    ScriptComponent *script = GetGameNodeComponent(node, ScriptComponent);
     if (script == NULL) {
         return;
     }
@@ -286,12 +281,12 @@ static void Update(GameContext *c, float delta) {
 static void RenderSprite(GameNode *node) {
     RenderContext *rc = node->c->rc;
 
-    SpriteComponent *sprite = node->components[COMPONENT_NAME_SpriteComponent];
+    SpriteComponent *sprite = GetGameNodeComponent(node, SpriteComponent);
     if (sprite == NULL) {
         return;
     }
 
-    T2 transform = GetGameNodeTransform(node);
+    T2 transform = GetGameNodeWorldTransform(node);
 
     Texture *texture = LoadTexture(rc, sprite->texturePath);
 
