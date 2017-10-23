@@ -15,10 +15,16 @@ typedef struct GameNode GameNode;
 
 #define MAX_TREE_HEIGHT 32
 
+typedef struct GameNodeTreeWalkerStackEntry {
+    GameNode *node;
+    int level;
+} GameNodeTreeWalkerStackEntry;
+
 typedef struct GameNodeTreeWalker {
-    GameNode *current;
+    GameNode *node;
+    int level;
     int size;
-    GameNode *stack[MAX_TREE_HEIGHT];
+    GameNodeTreeWalkerStackEntry stack[MAX_TREE_HEIGHT];
 } GameNodeTreeWalker;
 
 typedef struct GameContext {
@@ -65,6 +71,8 @@ typedef enum ComponentName {
 struct GameNode {
     GameContext *c;
 
+    const char *name;
+
     GameNode *parent;
 
     GameNode *prev;
@@ -78,9 +86,10 @@ struct GameNode {
     void *components[COMPONENT_NAME_COUNT];
 };
 
-GameNode *CreateGameNode(GameContext *c) {
+GameNode *CreateGameNode(GameContext *c, const char *name) {
     GameNode *node = malloc(sizeof(GameNode));
     node->c = c;
+    node->name = name;
     node->parent = NULL;
     node->prev = NULL;
     node->next = NULL;
@@ -96,6 +105,8 @@ GameNode *CreateGameNode(GameContext *c) {
 }
 
 void AppendGameNodeChild(GameNode *parent, GameNode *child) {
+    assert(child->parent == NULL);
+
     child->parent = parent;
 
     if (parent->lastChild != NULL) {
@@ -128,41 +139,43 @@ T2 GetGameNodeTransform(GameNode *node) {
 
 GameNodeTreeWalker *SetupGameNodeTreeWalker(GameContext *c) {
     GameNodeTreeWalker *walker = &c->gameNodeTreeWalker;
-    walker->current = c->rootNode;
+    walker->node = c->rootNode;
+    walker->level = 1;
     walker->size = 0;
     return walker;
 }
 
 int HasNextGameNode(GameNodeTreeWalker *walker) {
-    return walker->current != NULL;
+    return walker->node != NULL;
 }
 
 void WalkToNextGameNode(GameNodeTreeWalker *walker) {
     assert(HasNextGameNode(walker));
 
-    for (GameNode *child = walker->current->lastChild; child != NULL; child = child->prev) {
+    for (GameNode *child = walker->node->lastChild; child != NULL; child = child->prev) {
         assert(walker->size < MAX_TREE_HEIGHT);
-        walker->stack[walker->size++] = child;
+        GameNodeTreeWalkerStackEntry *entry = &walker->stack[walker->size++];
+        entry->node = child;
+        entry->level = walker->level + 1;
     }
 
     if (walker->size > 0) {
-        walker->current = walker->stack[--walker->size];
+        GameNodeTreeWalkerStackEntry *entry = &walker->stack[--walker->size];
+        walker->node = entry->node;
+        walker->level = entry->level;
     } else {
-        walker->current = NULL;
+        walker->node = NULL;
+        walker->level = 0;
     }
 }
 
-GameNode *GetCurrentGameNode(GameNodeTreeWalker *walker) {
-    return walker->current;
-}
-
 static void OnFixedUpdateBackground(GameNode *node, void *data, float delta) {
-    TransformComponent *transform = node->components[COMPONENT_NAME_TransformComponent];
-    transform->transform = TranslateT2(MakeV2(-10.0f * delta, 0.0f), transform->transform);
+//    TransformComponent *transform = node->components[COMPONENT_NAME_TransformComponent];
+//    transform->transform = TranslateT2(MakeV2(-10.0f * delta, 0.0f), transform->transform);
 }
 
-static GameNode *LoadBackgroundGameNode(GameContext *c) {
-    GameNode *node = CreateGameNode(c);
+static GameNode *CreateBackgroundGameNode(GameContext *c) {
+    GameNode *node = CreateGameNode(c, "Background");
 
     ScriptComponent *script = malloc(sizeof(ScriptComponent));
     node->components[COMPONENT_NAME_ScriptComponent] = script;
@@ -172,7 +185,7 @@ static GameNode *LoadBackgroundGameNode(GameContext *c) {
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
     node->components[COMPONENT_NAME_TransformComponent] = transform;
-    transform->transform = MakeT2FromScale(MakeV2(2.0f, 2.0f));
+    transform->transform = IdentityT2();
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
     node->components[COMPONENT_NAME_SpriteComponent] = sprite;
@@ -183,11 +196,30 @@ static GameNode *LoadBackgroundGameNode(GameContext *c) {
     return node;
 }
 
-static void LoadGameNodes(GameContext *c) {
-    GameNode *mainNode = CreateGameNode(c);
+static GameNode *CreateBirdGameNode(GameContext *c) {
+    GameNode *node = CreateGameNode(c, "Bird");
 
-    GameNode *backgroundNode = LoadBackgroundGameNode(c);
-    AppendGameNodeChild(mainNode, backgroundNode);
+    TransformComponent *transform = malloc(sizeof(TransformComponent));
+    node->components[COMPONENT_NAME_TransformComponent] = transform;
+    transform->transform = IdentityT2();
+
+    SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
+    node->components[COMPONENT_NAME_SpriteComponent] = sprite;
+    sprite->texturePath = "assets/sprites/bird_blue_0.png";
+    sprite->isRegionEnabled = 0;
+    sprite->region = ZeroBBox2();
+
+    return node;
+}
+
+static void LoadGameNodes(GameContext *c) {
+    GameNode *mainNode = CreateGameNode(c, "Main");
+
+    GameNode *backgroundGameNode = CreateBackgroundGameNode(c);
+    AppendGameNodeChild(mainNode, backgroundGameNode);
+
+    GameNode *birdGameNode = CreateBirdGameNode(c);
+    AppendGameNodeChild(mainNode, birdGameNode);
 
     c->rootNode = mainNode;
 }
@@ -247,8 +279,7 @@ static void DoScriptFixedUpdate(GameNode *node, float delta) {
 
 static void Update(GameContext *c, float delta) {
     for (GameNodeTreeWalker *walker = SetupGameNodeTreeWalker(c); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
-        GameNode *node = GetCurrentGameNode(walker);
-        DoScriptFixedUpdate(node, delta);
+        DoScriptFixedUpdate(walker->node, delta);
     }
 }
 
@@ -280,22 +311,41 @@ static void RenderSprite(GameNode *node) {
 
 static void Render(GameContext *c) {
     RenderContext *rc = c->rc;
+    int lastDrawCallCount = rc->drawCallCount;
+
+    SetCameraTransform(rc, MakeT2FromScale(MakeV2(2.0f, 2.0f)));
 
     ClearDrawing(rc);
 
     for (GameNodeTreeWalker *walker = SetupGameNodeTreeWalker(c); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
-        GameNode *node = GetCurrentGameNode(walker);
-        RenderSprite(node);
+        RenderSprite(walker->node);
     }
 
-    float fontSize = 20.0f;
+    SetCameraTransform(rc, IdentityT2());
+
+    float fontSize = 16.0f;
     float ascent = GetFontAscent(rc, c->font, fontSize);
     float lineHeight = GetFontLineHeight(rc, c->font, fontSize);
     float y = rc->height - ascent;
 #define BUF_SIZE 128
     char buf[BUF_SIZE];
+
     snprintf(buf, BUF_SIZE, "FPS: %d", c->fpsCounter.fps);
     DrawLineText(rc, c->font, fontSize, 0.0f, y, buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    y -= lineHeight;
+
+    snprintf(buf, BUF_SIZE, "Draw calls: %d", lastDrawCallCount);
+    DrawLineText(rc, c->font, fontSize, 0.0f, y, buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+    y -= lineHeight;
+
+    // Draw game node tree hierarchy
+    for (GameNodeTreeWalker *walker = SetupGameNodeTreeWalker(c); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
+        GameNode *node = walker->node;
+        float indent = (walker->level - 1) * fontSize;
+        snprintf(buf, BUF_SIZE, "%s", node->name);
+        DrawLineText(rc, c->font, fontSize, indent, y, buf, MakeV4(1.0f, 1.0f, 1.0f, 1.0f));
+        y -= lineHeight;
+    }
 }
 
 static int RunMainLoop(GameContext *c) {

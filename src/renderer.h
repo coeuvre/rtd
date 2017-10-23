@@ -11,7 +11,9 @@ typedef struct RenderContext {
     float height;
     float pointToPixel;
     float pixelToPoint;
+    int drawCallCount;
     T2 projection;
+    T2 camera;
     void *internal;
 } RenderContext;
 
@@ -30,7 +32,7 @@ typedef struct Font {
 
 extern RenderContext *CreateRenderContext(int width, int height, float pointToPixel);
 
-extern void ClearDrawing(RenderContext *renderContext);
+extern void ClearDrawing(RenderContext *rc);
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel);
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
@@ -43,6 +45,10 @@ extern float GetFontAscent(RenderContext *renderContext, Font *font, float size)
 extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float size);
 // size, x, y is in point space
 extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, float y, const char *text, V4 color);
+
+static inline void SetCameraTransform(RenderContext *rc, T2 transform) {
+    rc->camera = transform;
+}
 
 static inline BBox2 MakeBBox2FromTexture(Texture *tex) {
     if (!tex) {

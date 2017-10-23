@@ -206,17 +206,19 @@ static void UploadImageToGPU(Texture *tex, const unsigned char *data, int width,
 
 
 extern RenderContext *CreateRenderContext(int width, int height, float pointToPixel) {
-    RenderContext *renderContext = malloc(sizeof(RenderContext));
+    RenderContext *rc = malloc(sizeof(RenderContext));
     RenderContextInternal *renderContextInternal = malloc(sizeof(RenderContextInternal));
-    renderContext->internal = renderContextInternal;
+    rc->internal = renderContextInternal;
 
-    renderContext->width = (float) width;
-    renderContext->height = (float) height;
-    renderContext->pointToPixel = pointToPixel;
-    renderContext->pixelToPoint = 1.0f / pointToPixel;
-
-    renderContext->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
-                                      MakeT2FromScale(MakeV2(1.0f / width * 2.0f, 1.0f / height * 2.0f)));
+    rc->width = (float) width;
+    rc->height = (float) height;
+    rc->pointToPixel = pointToPixel;
+    rc->pixelToPoint = 1.0f / pointToPixel;
+    rc->drawCallCount = 0;
+    rc->projection = DotT2(MakeT2FromTranslation(MakeV2(-1.0f, -1.0f)),
+                           MakeT2FromScale(MakeV2(1.0f / width * 2.0f,
+                                                  1.0f / height * 2.0f)));
+    rc->camera = IdentityT2();
 
     glViewport(0, 0, (GLsizei) (width * pointToPixel), (GLsizei) (height * pointToPixel));
 
@@ -230,13 +232,13 @@ extern RenderContext *CreateRenderContext(int width, int height, float pointToPi
 
     SetupDrawTextureProgram(&renderContextInternal->drawTextureProgram);
 
-    return renderContext;
+    return rc;
 }
 
-extern void ClearDrawing(RenderContext *renderContext) {
-    (void) renderContext;
-
+extern void ClearDrawing(RenderContext *rc) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    rc->drawCallCount = 0;
 }
 
 extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsigned char *data, int width, int height, int stride, ImageChannel channel) {
@@ -301,12 +303,14 @@ extern void DrawTexture(RenderContext *rc, T2 transform, BBox2 dstBBox,
     glBindTexture(GL_TEXTURE_2D, glTex->id);
 
     glUseProgram(renderContextInternal->drawTextureProgram.program);
-    GLM3 MVP = MakeGLM3FromT2(rc->projection);
+    GLM3 MVP = MakeGLM3FromT2(DotT2(rc->projection, rc->camera));
     glUniformMatrix3fv(renderContextInternal->drawTextureProgram.MVPLocation, 1, GL_FALSE, MVP.m);
 
     glBindVertexArray(renderContextInternal->drawTextureProgram.vao);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    rc->drawCallCount++;
 }
 
 extern Font *LoadFont(RenderContext *renderContext, const char *filename) {
