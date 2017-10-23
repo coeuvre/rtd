@@ -2,6 +2,8 @@
 
 #ifdef PLATFORM_WIN32
 #include <windows.h>
+
+extern int _stdcall SetProcessDPIAware(void);
 #endif
 
 #include <stdlib.h>
@@ -15,8 +17,6 @@ typedef struct WindowInternal {
     SDL_Window *sdlWindow;
     SDL_GLContext *sdlGLContext;
 } WindowInternal;
-
-extern int _stdcall SetProcessDPIAware(void);
 
 static void SetupWindowDPI(Window *window) {
 #ifdef PLATFORM_WIN32
