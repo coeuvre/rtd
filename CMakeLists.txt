@@ -27,27 +27,33 @@ add_executable(char2hex src/tools/char2hex.c)
 # Compile shaders
 set(shaders)
 set(shaders_source
-        src/shaders/draw_texture.frag
-        src/shaders/draw_texture.vert)
+    src/shaders/draw_texture.frag
+    src/shaders/draw_texture.vert)
 foreach (shader_source ${shaders_source})
     set(input ${CMAKE_SOURCE_DIR}/${shader_source})
     set(output ${input}.gen)
-    add_custom_command(OUTPUT ${output}
-            DEPENDS char2hex ${input}
-            COMMAND char2hex ${output} ${input})
+    add_custom_command(
+        OUTPUT ${output}
+        DEPENDS char2hex ${input}
+        COMMAND char2hex ${output} ${input}
+    )
     list(APPEND shaders ${output})
 endforeach ()
 
 # Compile rtd
-FILE (GLOB_RECURSE clion_all_headers ${CMAKE_SOURCE_DIR}/src/*.h)
-add_executable(rtd
-        src/image.c
-        src/main.c
-        src/renderer.c
-        src/time.c
-        src/window.c
-        ${clion_all_headers}
-        ${shaders})
+FILE(GLOB_RECURSE clion_all_headers ${CMAKE_SOURCE_DIR}/src/*.h)
+add_executable(
+    rtd
+    src/game.h
+    src/game_node.c
+    src/image.c
+    src/main.c
+    src/renderer.c
+    src/time.c
+    src/window.c
+    ${clion_all_headers}
+    ${shaders}
+)
 
 set(libs glad)
 
