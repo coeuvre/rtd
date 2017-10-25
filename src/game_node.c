@@ -14,6 +14,8 @@ extern GameNode *CreateGameNode(GameContext *c, const char *name) {
 extern void AppendGameNodeChild(GameNode *parent, GameNode *child) {
     assert(child->parent == NULL);
 
+    // TODO(coeuvre): check whether child's name is unique
+
     child->parent = parent;
 
     if (parent->lastChild != NULL) {

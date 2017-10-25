@@ -11,11 +11,11 @@
 #include <stb_truetype.h>
 
 const char DRAW_TEXTURE_VERTEX_SHADER[] = {
-#include "shaders/draw_texture.vert.gen"
+#include "shader/draw_texture.vert.gen"
 };
 
 const char DRAW_TEXTURE_FRAGMENT_SHADER[] = {
-#include "shaders/draw_texture.frag.gen"
+#include "shader/draw_texture.frag.gen"
 };
 
 typedef struct DrawTextureVertexAttrib {

@@ -23,8 +23,8 @@ typedef struct TransformComponent {
 
 typedef struct SpriteComponent {
     const char *texturePath;
-    int isRegionEnabled;
     BBox2 region;
+    V2 anchor;
 } SpriteComponent;
 
 typedef enum ComponentName {

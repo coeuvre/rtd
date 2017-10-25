@@ -13,8 +13,8 @@ static void OnFixedUpdateBackground(GameNode *node, void *data, float delta) {
 //    transform->transform = TranslateT2(MakeV2(-40.0f * delta, 0.0f), transform->transform);
 }
 
-static GameNode *CreateBackgroundGameNode(GameContext *c) {
-    GameNode *node = CreateGameNode(c, "Background");
+static GameNode *CreateBackgroundGameNode(GameContext *c, const char *name) {
+    GameNode *node = CreateGameNode(c, name);
 
     ScriptComponent *script = malloc(sizeof(ScriptComponent));
     script->data = NULL;
@@ -28,8 +28,8 @@ static GameNode *CreateBackgroundGameNode(GameContext *c) {
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
     sprite->texturePath = "assets/sprites/background_day.png";
-    sprite->isRegionEnabled = 0;
-    sprite->region = ZeroBBox2();
+    sprite->region = OneBBox2();
+    sprite->anchor = MakeV2(0.0f, 0.0f);
     SetGameNodeComponent(node, SpriteComponent, sprite);
 
     return node;
@@ -39,13 +39,29 @@ static GameNode *CreateBirdGameNode(GameContext *c) {
     GameNode *node = CreateGameNode(c, "Bird");
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    transform->transform = IdentityT2();
+    transform->transform = MakeT2FromTranslation(MakeV2(28.0f, 200.0f));
     SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
     sprite->texturePath = "assets/sprites/bird_blue_0.png";
-    sprite->isRegionEnabled = 0;
-    sprite->region = ZeroBBox2();
+    sprite->region = OneBBox2();
+    sprite->anchor = MakeV2(0.5f, 0.5f);
+    SetGameNodeComponent(node, SpriteComponent, sprite);
+
+    return node;
+}
+
+static GameNode *CreateGroundGameNode(GameContext *c, const char *name) {
+    GameNode *node = CreateGameNode(c, name);
+
+    TransformComponent *transform = malloc(sizeof(TransformComponent));
+    transform->transform = IdentityT2();
+    SetGameNodeComponent(node, TransformComponent, transform);
+
+    SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
+    sprite->texturePath = "assets/sprites/ground.png";
+    sprite->region = OneBBox2();
+    sprite->anchor = ZeroV2();
     SetGameNodeComponent(node, SpriteComponent, sprite);
 
     return node;
@@ -54,11 +70,14 @@ static GameNode *CreateBirdGameNode(GameContext *c) {
 static void LoadGameNodes(GameContext *c) {
     GameNode *mainNode = CreateGameNode(c, "Main");
 
-    GameNode *backgroundGameNode = CreateBackgroundGameNode(c);
-    AppendGameNodeChild(mainNode, backgroundGameNode);
+    GameNode *background = CreateBackgroundGameNode(c, "Background 1");
+    AppendGameNodeChild(mainNode, background);
 
-    GameNode *birdGameNode = CreateBirdGameNode(c);
-    AppendGameNodeChild(mainNode, birdGameNode);
+    GameNode *bird = CreateBirdGameNode(c);
+    AppendGameNodeChild(mainNode, bird);
+
+    GameNode *ground = CreateGroundGameNode(c, "Ground 1");
+    AppendGameNodeChild(mainNode, ground);
 
     c->rootNode = mainNode;
 }
@@ -117,8 +136,7 @@ static void DoScriptFixedUpdate(GameNode *node, float delta) {
 }
 
 static void Update(GameContext *c, float delta) {
-    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
-         HasNextGameNode(walker); WalkToNextGameNode(walker)) {
+    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
         DoScriptFixedUpdate(walker->node, delta);
     }
 }
@@ -132,15 +150,13 @@ static void RenderSprite(RenderContext *rc, GameNode *node) {
     T2 transform = GetGameNodeWorldTransform(node);
 
     Texture *texture = LoadTexture(rc, sprite->texturePath);
-
-    BBox2 src;
-    if (sprite->isRegionEnabled) {
-        src = sprite->region;
-    } else {
-        src = MakeBBox2FromTexture(texture);
-    }
+    V2 texSize = MakeV2((F) texture->width, (F) texture->height);
+    BBox2 src = MakeBBox2(HadamardMulV2(sprite->region.min, texSize), HadamardMulV2(sprite->region.max, texSize));
 
     BBox2 dst = src;
+
+    V2 offset = HadamardMulV2(sprite->anchor, GetBBox2Size(src));
+    transform = DotT2(transform, MakeT2FromTranslation(NegV2(offset)));
 
     DrawTexture(rc, transform, dst, texture, src, OneV4(), ZeroV4());
 
@@ -151,9 +167,9 @@ static void Render(GameContext *c) {
     RenderContext *rc = c->rc;
     int lastDrawCallCount = rc->drawCallCount;
 
-    SetCameraTransform(rc, MakeT2FromScale(MakeV2(2.0f, 2.0f)));
-
     ClearDrawing(rc);
+
+    SetCameraTransform(rc, MakeT2FromScale(MakeV2(2.0f, 2.0f)));
 
     for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
          HasNextGameNode(walker); WalkToNextGameNode(walker)) {

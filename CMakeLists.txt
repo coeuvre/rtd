@@ -22,13 +22,13 @@ endif ()
 include_directories(lib/stb)
 
 # Compile tool char2hex
-add_executable(char2hex src/tools/char2hex.c)
+add_executable(char2hex src/tool/char2hex.c)
 
 # Compile shaders
 set(shaders)
 set(shaders_source
-    src/shaders/draw_texture.frag
-    src/shaders/draw_texture.vert)
+    src/shader/draw_texture.frag
+    src/shader/draw_texture.vert)
 foreach (shader_source ${shaders_source})
     set(input ${CMAKE_SOURCE_DIR}/${shader_source})
     set(output ${input}.gen)

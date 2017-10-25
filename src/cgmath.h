@@ -89,6 +89,10 @@ static inline V2 ZeroV2(void) {
     return MakeV2(0.0f, 0.0f);
 }
 
+static inline V2 OneV2(void) {
+    return MakeV2(1.0f, 1.0f);
+}
+
 static inline V2 NegV2(V2 v) {
     V2 result = { -v.x, -v.y };
     return result;
@@ -240,6 +244,14 @@ static inline BBox2 MakeBBox2MinSize(V2 min, V2 size) {
 
 static inline BBox2 ZeroBBox2(void) {
     return MakeBBox2(ZeroV2(), ZeroV2());
+}
+
+static inline BBox2 OneBBox2(void) {
+    return MakeBBox2(ZeroV2(), OneV2());
+}
+
+static inline V2 GetBBox2Size(BBox2 bbox) {
+    return SubV2(bbox.max, bbox.min);
 }
 
 //
