@@ -44,7 +44,8 @@ extern T2 GetGameNodeWorldTransform(GameNode *node) {
     }
 
     TransformComponent *transform = GetGameNodeComponent(node, TransformComponent);
-    return DotT2(transform->transform, parentTransform);
+    T2 thisTransform = MakeT2(transform->translation, transform->rotation, transform->scale);
+    return DotT2(thisTransform, parentTransform);
 }
 
 extern void WalkToNextGameNode(GameNodeTreeWalker *walker) {

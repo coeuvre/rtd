@@ -18,7 +18,9 @@ typedef struct ScriptComponent {
 } ScriptComponent;
 
 typedef struct TransformComponent {
-    T2 transform;
+    V2 translation;
+    F rotation;
+    V2 scale;
 } TransformComponent;
 
 typedef struct SpriteComponent {

@@ -374,6 +374,10 @@ static inline T2 MakeT2FromTranslation(V2 t) {
     return result;
 }
 
+static inline T2 MakeT2(V2 translation, F rotation, V2 scale) {
+    return DotT2(MakeT2FromTranslation(translation), DotT2(MakeT2FromRotation(rotation), MakeT2FromScale(scale)));
+}
+
 static inline V2 ApplyT2(T2 t, V2 v) {
     V2 result;
     result.x = v.x * t.a + v.y * t.c + t.x;

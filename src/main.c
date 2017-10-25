@@ -3,8 +3,8 @@
 
 #include <SDL2/SDL.h>
 
-#define WINDOW_WIDTH 288
-#define WINDOW_HEIGHT 512
+#define WINDOW_WIDTH 576
+#define WINDOW_HEIGHT 768
 
 #include "game.h"
 
@@ -23,7 +23,9 @@ static GameNode *CreateBackgroundGameNode(GameContext *c, const char *name) {
     SetGameNodeComponent(node, ScriptComponent, script);
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    transform->transform = IdentityT2();
+    transform->translation = ZeroV2();
+    transform->rotation = 0.0f;
+    transform->scale = OneV2();
     SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
@@ -35,11 +37,24 @@ static GameNode *CreateBackgroundGameNode(GameContext *c, const char *name) {
     return node;
 }
 
+static void OnFixedUpdateBird(GameNode *node, void *data, float delta) {
+    TransformComponent *transform = GetGameNodeComponent(node, TransformComponent);
+    transform->rotation += 1.0f * delta;
+}
+
 static GameNode *CreateBirdGameNode(GameContext *c) {
     GameNode *node = CreateGameNode(c, "Bird");
 
+    ScriptComponent *script = malloc(sizeof(ScriptComponent));
+    script->data = NULL;
+    script->onReady = NULL;
+    script->onFixedUpdate = OnFixedUpdateBird;
+    SetGameNodeComponent(node, ScriptComponent, script);
+
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    transform->transform = MakeT2FromTranslation(MakeV2(28.0f, 200.0f));
+    transform->translation = MakeV2(28.0f, 200.0f);
+    transform->rotation = 0.0f;
+    transform->scale = OneV2();
     SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
@@ -55,8 +70,9 @@ static GameNode *CreateGroundGameNode(GameContext *c, const char *name) {
     GameNode *node = CreateGameNode(c, name);
 
     TransformComponent *transform = malloc(sizeof(TransformComponent));
-    transform->transform = IdentityT2();
-    SetGameNodeComponent(node, TransformComponent, transform);
+    transform->translation = ZeroV2();
+    transform->rotation = 0.0f;
+    transform->scale = OneV2();    SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
     sprite->texturePath = "assets/sprites/ground.png";
@@ -169,7 +185,9 @@ static void Render(GameContext *c) {
 
     ClearDrawing(rc);
 
-    SetCameraTransform(rc, MakeT2FromScale(MakeV2(2.0f, 2.0f)));
+//    SetCameraTransform(rc, MakeT2FromTranslation(MakeV2(-WINDOW_WIDTH / 2.0f, -WINDOW_HEIGHT / 2.0f)));
+//    SetCameraTransform(rc, DotT2(MakeT2FromScale(MakeV2(1.0f, 1.0f)), MakeT2FromTranslation(MakeV2(216.0f, 256.0))));
+    SetCameraTransform(rc, MakeT2(MakeV2(144.0f, 128.0f), 0.0f, MakeV2(2.0f, 2.0f)));
 
     for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
          HasNextGameNode(walker); WalkToNextGameNode(walker)) {
