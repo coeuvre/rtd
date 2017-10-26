@@ -72,7 +72,8 @@ static GameNode *CreateGroundGameNode(GameContext *c, const char *name) {
     TransformComponent *transform = malloc(sizeof(TransformComponent));
     transform->translation = ZeroV2();
     transform->rotation = 0.0f;
-    transform->scale = OneV2();    SetGameNodeComponent(node, TransformComponent, transform);
+    transform->scale = OneV2();    
+    SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));
     sprite->texturePath = "assets/sprites/ground.png";
@@ -166,6 +167,10 @@ static void RenderSprite(RenderContext *rc, GameNode *node) {
     T2 transform = GetGameNodeWorldTransform(node);
 
     Texture *texture = LoadTexture(rc, sprite->texturePath);
+    if (texture == NULL) {
+        return;
+    }
+
     V2 texSize = MakeV2((F) texture->width, (F) texture->height);
     BBox2 src = MakeBBox2(HadamardMulV2(sprite->region.min, texSize), HadamardMulV2(sprite->region.max, texSize));
 
@@ -246,9 +251,9 @@ static int RunMainLoop(GameContext *c) {
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
-    GameContext context = {0};
+    GameContext *context = malloc(sizeof(GameContext));
 
-    SetupGame(&context);
+    SetupGame(context);
 
-    return RunMainLoop(&context);
+    return RunMainLoop(context);
 }

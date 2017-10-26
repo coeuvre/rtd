@@ -3,7 +3,7 @@
 #include "assert.h"
 #include "string.h"
 
-extern GameNode *CreateGameNode(GameContext *c, const char *name) {
+extern GameNode *CreateGameNode(struct GameContext *c, const char *name) {
     GameNode *node = malloc(sizeof(GameNode));
     memset(node, 0, sizeof(GameNode));
     node->name = name;
@@ -45,7 +45,7 @@ extern T2 GetGameNodeWorldTransform(GameNode *node) {
 
     TransformComponent *transform = GetGameNodeComponent(node, TransformComponent);
     T2 thisTransform = MakeT2(transform->translation, transform->rotation, transform->scale);
-    return DotT2(thisTransform, parentTransform);
+    return DotT2(parentTransform, thisTransform);
 }
 
 extern void WalkToNextGameNode(GameNodeTreeWalker *walker) {

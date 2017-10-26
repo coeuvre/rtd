@@ -4,8 +4,9 @@
 #include <stdlib.h>
 
 #include "cgmath.h"
+#include "game_context.h"
 
-typedef struct GameContext GameContext;
+struct GameContext;
 typedef struct GameNode GameNode;
 
 typedef void OnReadyFn(GameNode *node, void *data);
@@ -70,7 +71,7 @@ struct GameNode {
 #define SetGameNodeComponent(node, component, ptr) ((node)->components[COMPONENT_NAME_##component] = (ptr))
 #define GetGameNodeComponent(node, component) ((component *) ((node)->components[COMPONENT_NAME_##component]))
 
-extern GameNode *CreateGameNode(GameContext *c, const char *name);
+extern GameNode *CreateGameNode(struct GameContext *c, const char *name);
 extern void AppendGameNodeChild(GameNode *parent, GameNode *child);
 extern T2 GetGameNodeWorldTransform(GameNode *node);
 extern void WalkToNextGameNode(GameNodeTreeWalker *walker);
@@ -85,6 +86,5 @@ static inline GameNodeTreeWalker *BeginWalkGameNodeTree(GameNodeTreeWalker *walk
 static inline int HasNextGameNode(GameNodeTreeWalker *walker) {
     return walker->node != NULL;
 }
-
 
 #endif // RTD_GAME_NODE_H

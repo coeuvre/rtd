@@ -6,8 +6,9 @@
 #include "time.h"
 #include "cgmath.h"
 #include "game_node.h"
+#include "game_context.h"
 
-typedef struct GameContext {
+struct GameContext {
     Window *window;
     RenderContext *rc;
     FPSCounter fpsCounter;
@@ -18,6 +19,6 @@ typedef struct GameContext {
     Font *font;
 
     GameNode *rootNode;
-} GameContext;
+};
 
 #endif // RTD_GAME_H
