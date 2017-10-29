@@ -197,10 +197,8 @@ static void Render(GameContext *c) {
         RenderSprite(rc, walker->node);
     }
 
-    static F rotation = 0.0F;
-    rotation += 0.01F;
-    DrawRect(rc, IdentityT2(), MakeBBox2MinSize(MakeV2(50.0f, 70.0f), MakeV2(30.0f, 30.0f)), 3.0f, 1.0f, MakeV4(0.0f, 1.0f, 0.0f, 1.0f), MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
-    DrawCircle(rc, IdentityT2(), MakeV2(10.0f, 10.0f), 10.0f, 1.0f, MakeV4(0.0f, 1.0f, 0.0f, 1.0f), MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
+    DrawRect(rc, IdentityT2(), MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(144.0f, 256.0f)),
+             0.0f, 1.0f, ZeroV4(), MakeV4(1.0f, 1.0f, 0.0f, 1.0f));
 
     SetCameraTransform(rc, IdentityT2());
 
