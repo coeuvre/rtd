@@ -119,6 +119,13 @@ static inline V2 MulV2(F a, V2 b) {
     return result;
 }
 
+static inline V2 DivV2(F a, V2 b) {
+    V2 result;
+    result.x = a / b.x;
+    result.y = a / b.y;
+    return result;
+}
+
 static inline F DotV2(V2 a, V2 b) {
     F result = a.x * b.x + a.y * b.y;
     return result;

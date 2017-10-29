@@ -25,7 +25,6 @@ typedef struct DrawTextureVertexAttrib {
     F pos[2];
     F texCoord[2];
     F color[4];
-    F tint[4];
 } DrawTextureVertexAttrib;
 
 typedef struct DrawTextureProgram {
@@ -36,8 +35,39 @@ typedef struct DrawTextureProgram {
     GLint MVPLocation;
 } DrawTextureProgram;
 
+
+
+const char DRAW_RECT_VERTEX_SHADER[] = {
+#include "shader/draw_rect.vert.gen"
+};
+
+const char DRAW_RECT_FRAGMENT_SHADER[] = {
+#include "shader/draw_rect.frag.gen"
+};
+
+typedef struct DrawRectVertexAttrib {
+    F transform0[3];
+    F transform1[3];
+    F transform2[3];
+    F pos[2];
+    F texCoord[2];
+    F color[4];
+    F roundRadius[2];
+    F thickness[2];
+    F borderColor[4];
+} DrawRectVertexAttrib;
+
+typedef struct DrawRectProgram {
+    GLuint vao;
+    GLuint vbo;
+    GLuint ebo;
+    GLuint program;
+    GLint MVPLocation;
+} DrawRectProgram;
+
 typedef struct RenderContextInternal {
     DrawTextureProgram drawTextureProgram;
+    DrawRectProgram drawRectProgram;
 } RenderContextInternal;
 
 typedef struct GLTexture {
@@ -102,10 +132,10 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
 
     glBindVertexArray(drawTextureProgram->vao);
     glBindBuffer(GL_ARRAY_BUFFER, drawTextureProgram->vbo);
-    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawTextureProgram->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, transform0));
     glEnableVertexAttribArray(0);
@@ -125,9 +155,6 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
     glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, color));
     glEnableVertexAttribArray(5);
 
-    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(DrawTextureVertexAttrib), (void *) offsetof(DrawTextureVertexAttrib, tint));
-    glEnableVertexAttribArray(6);
-
     glBindVertexArray(0);
 
     // Compile Program
@@ -138,7 +165,57 @@ static void SetupDrawTextureProgram(DrawTextureProgram *drawTextureProgram) {
     glUseProgram(drawTextureProgram->program);
     glUniform1i(glGetUniformLocation(drawTextureProgram->program, "texture0"), 0);
     drawTextureProgram->MVPLocation = glGetUniformLocation(drawTextureProgram->program, "MVP");
+}
 
+static void SetupDrawRectProgram(DrawRectProgram *drawRectProgram) {
+    // Setup VAO
+    glGenVertexArrays(1, &drawRectProgram->vao);
+    glGenBuffers(1, &drawRectProgram->vbo);
+    glGenBuffers(1, &drawRectProgram->ebo);
+
+    glBindVertexArray(drawRectProgram->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, drawRectProgram->vbo);
+    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawRectProgram->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, NULL, GL_STREAM_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, transform0));
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, transform1));
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, transform2));
+    glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, pos));
+    glEnableVertexAttribArray(3);
+
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, texCoord));
+    glEnableVertexAttribArray(4);
+
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, color));
+    glEnableVertexAttribArray(5);
+
+    glVertexAttribPointer(6, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, roundRadius));
+    glEnableVertexAttribArray(6);
+
+    glVertexAttribPointer(7, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, thickness));
+    glEnableVertexAttribArray(7);
+
+    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRectVertexAttrib), (void *) offsetof(DrawRectVertexAttrib, borderColor));
+    glEnableVertexAttribArray(8);
+
+    glBindVertexArray(0);
+
+    // Compile Program
+    drawRectProgram->program = CompileGLProgram(DRAW_RECT_VERTEX_SHADER, DRAW_RECT_FRAGMENT_SHADER);
+    if (!drawRectProgram->program) {
+        exit(EXIT_FAILURE);
+    }
+    glUseProgram(drawRectProgram->program);
+    drawRectProgram->MVPLocation = glGetUniformLocation(drawRectProgram->program, "MVP");
 }
 
 // TODO(coeuvre): Allow to define filter mode
@@ -232,6 +309,7 @@ extern RenderContext *CreateRenderContext(int width, int height, float pointToPi
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     SetupDrawTextureProgram(&renderContextInternal->drawTextureProgram);
+    SetupDrawRectProgram(&renderContextInternal->drawRectProgram);
 
     return rc;
 }
@@ -271,7 +349,7 @@ extern void DestroyTexture(RenderContext *renderContext, Texture **ptr) {
 }
 
 extern void DrawTexture(RenderContext *rc, T2 transform, BBox2 dstBBox,
-                        Texture *tex, BBox2 srcBBox, V4 color, V4 tint) {
+                        Texture *tex, BBox2 srcBBox, V4 color) {
     if (!tex) {
         return;
     }
@@ -283,15 +361,15 @@ extern void DrawTexture(RenderContext *rc, T2 transform, BBox2 dstBBox,
     BBox2 texBBox = MakeBBox2(HadamardDivV2(srcBBox.min, texSize), HadamardDivV2(srcBBox.max, texSize));
     GLM3 t = MakeGLM3FromT2(transform);
     DrawTextureVertexAttrib vertices[] = {
-            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.max.y, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top right
-            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.min.y, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom right
-            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.min.y, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // bottom left
-            t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.max.y, texBBox.min.x, texBBox.max.y, color.r, color.g, color.b, color.a, tint.r, tint.g, tint.b, tint.a,   // top left
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.max.y, texBBox.max.x, texBBox.max.y, color.r, color.g, color.b, color.a,   // top right
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.max.x, dstBBox.min.y, texBBox.max.x, texBBox.min.y, color.r, color.g, color.b, color.a,   // bottom right
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.min.y, texBBox.min.x, texBBox.min.y, color.r, color.g, color.b, color.a,   // bottom left
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], dstBBox.min.x, dstBBox.max.y, texBBox.min.x, texBBox.max.y, color.r, color.g, color.b, color.a,   // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
-            0, 1, 3,   // first triangle
-            1, 2, 3    // second triangle
+        0, 1, 3,   // first triangle
+        1, 2, 3,   // second triangle
     };
 
     glBindBuffer(GL_ARRAY_BUFFER, renderContextInternal->drawTextureProgram.vbo);
@@ -402,8 +480,7 @@ extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, flo
                                                 y - (height + yOff) * rc->pixelToPoint),
                                          MakeV2(width * rc->pixelToPoint,
                                                 height * rc->pixelToPoint)),
-                        texture, MakeBBox2FromTexture(texture), color,
-                        ZeroV4());
+                        texture, MakeBBox2FromTexture(texture), color);
             DestroyTexture(rc, &texture);
             stbtt_FreeBitmap(bitmap, 0);
         }
@@ -419,4 +496,40 @@ extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, flo
 
         x += kern;
     }
+}
+
+extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, V4 color, F roundRadius, F thickness, V4 borderColor) {
+    RenderContextInternal *renderContextInternal = rc->internal;
+
+    V2 size = GetBBox2Size(bbox);
+    V2 normalizedRoundRadius = DivV2(roundRadius, size);
+    V2 normalizedThickness = DivV2(thickness, size);
+    GLM3 t = MakeGLM3FromT2(transform);
+    DrawRectVertexAttrib vertices[] = {
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], bbox.max.x, bbox.max.y, 1.0f, 1.0f, color.r, color.g, color.b, color.a, normalizedRoundRadius.x, normalizedRoundRadius.y, normalizedThickness.x, normalizedThickness.y, borderColor.r, borderColor.g, borderColor.b, borderColor.a,  // top right
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], bbox.max.x, bbox.min.y, 1.0f, 0.0f, color.r, color.g, color.b, color.a, normalizedRoundRadius.x, normalizedRoundRadius.y, normalizedThickness.x, normalizedThickness.y, borderColor.r, borderColor.g, borderColor.b, borderColor.a,  // bottom right
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], bbox.min.x, bbox.min.y, 0.0f, 0.0f, color.r, color.g, color.b, color.a, normalizedRoundRadius.x, normalizedRoundRadius.y, normalizedThickness.x, normalizedThickness.y, borderColor.r, borderColor.g, borderColor.b, borderColor.a,  // bottom left
+        t.m[0], t.m[1], t.m[2], t.m[3], t.m[4], t.m[5], t.m[6], t.m[7], t.m[8], bbox.min.x, bbox.max.y, 0.0f, 1.0f, color.r, color.g, color.b, color.a, normalizedRoundRadius.x, normalizedRoundRadius.y, normalizedThickness.x, normalizedThickness.y, borderColor.r, borderColor.g, borderColor.b, borderColor.a,  // top left
+    };
+
+    unsigned int indices[] = {  // note that we start from 0!
+        0, 1, 3,   // first triangle
+        1, 2, 3,   // second triangle
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, renderContextInternal->drawRectProgram.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STREAM_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderContextInternal->drawRectProgram.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STREAM_DRAW);
+
+    glUseProgram(renderContextInternal->drawRectProgram.program);
+    GLM3 MVP = MakeGLM3FromT2(DotT2(rc->projection, rc->camera));
+    glUniformMatrix3fv(renderContextInternal->drawRectProgram.MVPLocation, 1, GL_FALSE, MVP.m);
+
+    glBindVertexArray(renderContextInternal->drawRectProgram.vao);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    rc->drawCallCount++;
 }

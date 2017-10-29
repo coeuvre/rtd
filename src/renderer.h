@@ -38,13 +38,15 @@ extern Texture *CreateTextureFromMemory(RenderContext *renderContext, const unsi
 extern void DestroyTexture(RenderContext *renderContext, Texture **texture);
 // dstBBox is in point space
 extern void DrawTexture(RenderContext *rc, T2 transform, BBox2 dstBBox,
-                        Texture *tex, BBox2 srcBBox, V4 color, V4 tint);
+                        Texture *tex, BBox2 srcBBox, V4 color);
 
 extern Font *LoadFont(RenderContext *renderContext, const char *filename);
 extern float GetFontAscent(RenderContext *renderContext, Font *font, float size);
 extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float size);
 // size, x, y is in point space
 extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, float y, const char *text, V4 color);
+
+extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, V4 color, F roundRadius, F thickness, V4 borderColor);
 
 static inline void SetCameraTransform(RenderContext *rc, T2 transform) {
     rc->camera = transform;

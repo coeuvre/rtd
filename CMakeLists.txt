@@ -27,6 +27,8 @@ add_executable(char2hex src/tool/char2hex.c)
 # Compile shaders
 set(shaders)
 set(shaders_source
+    src/shader/draw_rect.frag
+    src/shader/draw_rect.vert
     src/shader/draw_texture.frag
     src/shader/draw_texture.vert)
 foreach (shader_source ${shaders_source})

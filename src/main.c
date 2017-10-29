@@ -179,7 +179,7 @@ static void RenderSprite(RenderContext *rc, GameNode *node) {
     V2 offset = HadamardMulV2(sprite->anchor, GetBBox2Size(src));
     transform = DotT2(transform, MakeT2FromTranslation(NegV2(offset)));
 
-    DrawTexture(rc, transform, dst, texture, src, OneV4(), ZeroV4());
+    DrawTexture(rc, transform, dst, texture, src, OneV4());
 
     DestroyTexture(rc, &texture);
 }
@@ -198,6 +198,10 @@ static void Render(GameContext *c) {
          HasNextGameNode(walker); WalkToNextGameNode(walker)) {
         RenderSprite(rc, walker->node);
     }
+
+    static F rotation = 0.0F;
+    rotation += 0.01F;
+    DrawRect(rc, IdentityT2(), MakeBBox2(MakeV2(50.0f, 70.0f), MakeV2(120.0f, 120.0f)), ZeroV4(), 5.0f, 10.0f, MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
 
     SetCameraTransform(rc, IdentityT2());
 
