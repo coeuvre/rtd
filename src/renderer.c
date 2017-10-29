@@ -399,8 +399,7 @@ extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, flo
             Texture *texture = CreateTextureFromMemory(rc, bitmap, width, height, width, IMAGE_CHANNEL_A);
             DrawTexture(rc, IdentityT2(),
                         MakeBBox2MinSize(MakeV2(x + xOff * rc->pixelToPoint,
-                                                y - (height + yOff) *
-                                                    rc->pixelToPoint),
+                                                y - (height + yOff) * rc->pixelToPoint),
                                          MakeV2(width * rc->pixelToPoint,
                                                 height * rc->pixelToPoint)),
                         texture, MakeBBox2FromTexture(texture), color,

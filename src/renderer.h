@@ -18,10 +18,10 @@ typedef struct RenderContext {
 } RenderContext;
 
 typedef struct Texture {
-    int width;
-    int height;
-    int actualWidth;
-    int actualHeight;
+    int width;          // Texture width in pixels
+    int height;         // Texture width in pixels
+    int actualWidth;    // Texture width with padding in pixels
+    int actualHeight;   // Texture height with padding in pixels
     void *internal;
 } Texture;
 

@@ -72,7 +72,7 @@ static GameNode *CreateGroundGameNode(GameContext *c, const char *name) {
     TransformComponent *transform = malloc(sizeof(TransformComponent));
     transform->translation = ZeroV2();
     transform->rotation = 0.0f;
-    transform->scale = OneV2();    
+    transform->scale = OneV2();
     SetGameNodeComponent(node, TransformComponent, transform);
 
     SpriteComponent *sprite = malloc(sizeof(SpriteComponent));

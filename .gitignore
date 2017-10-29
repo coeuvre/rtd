@@ -53,6 +53,8 @@ dkms.conf
 
 *.gen
 .idea/
+.vs/
 .vscode/
+assets/
 build/
 cmake-build*/

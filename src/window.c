@@ -2,8 +2,6 @@
 
 #ifdef PLATFORM_WIN32
 #include <windows.h>
-
-extern int _stdcall SetProcessDPIAware(void);
 #endif
 
 #include <stdlib.h>
