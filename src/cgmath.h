@@ -12,6 +12,10 @@ typedef float F;
 //
 // Scalar
 //
+static inline F MinF(F x, F y) {
+    return x <= y ? x : y;
+}
+
 static inline F AbsF(F x) {
     F result = fabsf(x);
     return result;
@@ -247,6 +251,11 @@ static inline BBox2 MakeBBox2MinSize(V2 min, V2 size) {
     result.min = min;
     result.max = AddV2(min, size);
     return result;
+}
+
+static inline BBox2 MakeBBox2CenSize(V2 cen, V2 size) {
+    V2 min = SubV2(cen, MulV2(0.5f, size));
+    return MakeBBox2MinSize(min, size);
 }
 
 static inline BBox2 ZeroBBox2(void) {

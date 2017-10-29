@@ -498,10 +498,12 @@ extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, flo
     }
 }
 
-extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, V4 color, F roundRadius, F thickness, V4 borderColor) {
+extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, F roundRadius, F thickness, V4 color, V4 borderColor) {
     RenderContextInternal *renderContextInternal = rc->internal;
 
     V2 size = GetBBox2Size(bbox);
+    roundRadius = MinF(roundRadius, MinF(size.x, size.y) / 2.0f);
+    thickness = MinF(thickness, MinF(size.x, size.y) / 2.0f);
     V2 normalizedRoundRadius = DivV2(roundRadius, size);
     V2 normalizedThickness = DivV2(thickness, size);
     GLM3 t = MakeGLM3FromT2(transform);

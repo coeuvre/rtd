@@ -46,7 +46,7 @@ extern float GetFontLineHeight(RenderContext *renderContext, Font *font, float s
 // size, x, y is in point space
 extern void DrawLineText(RenderContext *rc, Font *font, float size, float x, float y, const char *text, V4 color);
 
-extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, V4 color, F roundRadius, F thickness, V4 borderColor);
+extern void DrawRect(RenderContext *rc, T2 transform, BBox2 bbox, F roundRadius, F thickness, V4 color, V4 borderColor);
 
 static inline void SetCameraTransform(RenderContext *rc, T2 transform) {
     rc->camera = transform;
@@ -77,6 +77,10 @@ static inline Texture *LoadTexture(RenderContext *renderContext, const char *fil
     DestroyImage(&image);
 
     return tex;
+}
+
+static inline void DrawCircle(RenderContext *rc, T2 transform, V2 pos, F radius, F thickness, V4 color, V4 borderColor) {
+    DrawRect(rc, transform, MakeBBox2CenSize(pos, MakeV2(radius * 2.0f, radius * 2.0f)), radius, thickness, color, borderColor);
 }
 
 #endif // RTD_RENDERER_H

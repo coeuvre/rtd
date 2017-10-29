@@ -190,8 +190,6 @@ static void Render(GameContext *c) {
 
     ClearDrawing(rc);
 
-//    SetCameraTransform(rc, MakeT2FromTranslation(MakeV2(-WINDOW_WIDTH / 2.0f, -WINDOW_HEIGHT / 2.0f)));
-//    SetCameraTransform(rc, DotT2(MakeT2FromScale(MakeV2(1.0f, 1.0f)), MakeT2FromTranslation(MakeV2(216.0f, 256.0))));
     SetCameraTransform(rc, MakeT2(MakeV2(144.0f, 128.0f), 0.0f, MakeV2(2.0f, 2.0f)));
 
     for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
@@ -201,7 +199,8 @@ static void Render(GameContext *c) {
 
     static F rotation = 0.0F;
     rotation += 0.01F;
-    DrawRect(rc, IdentityT2(), MakeBBox2(MakeV2(50.0f, 70.0f), MakeV2(120.0f, 120.0f)), ZeroV4(), 5.0f, 10.0f, MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
+    DrawRect(rc, IdentityT2(), MakeBBox2MinSize(MakeV2(50.0f, 70.0f), MakeV2(30.0f, 30.0f)), 3.0f, 1.0f, MakeV4(0.0f, 1.0f, 0.0f, 1.0f), MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
+    DrawCircle(rc, IdentityT2(), MakeV2(10.0f, 10.0f), 10.0f, 1.0f, MakeV4(0.0f, 1.0f, 0.0f, 1.0f), MakeV4(1.0f, 0.0f, 0.0f, 1.0f));
 
     SetCameraTransform(rc, IdentityT2());
 
