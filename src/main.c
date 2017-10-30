@@ -158,13 +158,11 @@ static void Update(GameContext *c, float delta) {
     }
 }
 
-static void RenderSprite(RenderContext *rc, GameNode *node) {
+static void RenderSprite(RenderContext *rc, T2 transform, GameNode *node) {
     SpriteComponent *sprite = GetGameNodeComponent(node, SpriteComponent);
     if (sprite == NULL) {
         return;
     }
-
-    T2 transform = GetGameNodeWorldTransform(node);
 
     Texture *texture = LoadTexture(rc, sprite->texturePath);
     if (texture == NULL) {
@@ -184,6 +182,15 @@ static void RenderSprite(RenderContext *rc, GameNode *node) {
     DestroyTexture(rc, &texture);
 }
 
+static void RenderNode(RenderContext *rc, GameNode *node) {
+    T2 transform = GetGameNodeWorldTransform(node);
+
+    RenderSprite(rc, transform, node);
+
+    // Debug draw transform origin in the world space
+    DrawRect(rc, transform, MakeBBox2CenSize(MakeV2(0.0f, 0.0f), MakeV2(2.0f, 2.0f)), 0.0f, 0.0f, OneV4(), ZeroV4());
+}
+
 static void Render(GameContext *c) {
     RenderContext *rc = c->rc;
     int lastDrawCallCount = rc->drawCallCount;
@@ -192,9 +199,8 @@ static void Render(GameContext *c) {
 
     SetCameraTransform(rc, MakeT2(MakeV2(144.0f, 128.0f), 0.0f, MakeV2(2.0f, 2.0f)));
 
-    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
-         HasNextGameNode(walker); WalkToNextGameNode(walker)) {
-        RenderSprite(rc, walker->node);
+    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
+        RenderNode(rc, walker->node);
     }
 
     DrawRect(rc, IdentityT2(), MakeBBox2(MakeV2(0.0f, 0.0f), MakeV2(144.0f, 256.0f)),
@@ -218,8 +224,7 @@ static void Render(GameContext *c) {
     y -= lineHeight;
 
     // Draw game node tree hierarchy
-    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode);
-         HasNextGameNode(walker); WalkToNextGameNode(walker)) {
+    for (GameNodeTreeWalker *walker = BeginWalkGameNodeTree(&c->gameNodeTreeWalker, c->rootNode); HasNextGameNode(walker); WalkToNextGameNode(walker)) {
         GameNode *node = walker->node;
         float indent = (walker->level - 1) * fontSize;
         snprintf(buf, BUF_SIZE, "%s", node->name);

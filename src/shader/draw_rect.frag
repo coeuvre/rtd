@@ -9,7 +9,7 @@ in vec4 vBorderColor;
 out vec4 fragColor;
 
 float CalcEllipseDelta(vec2 p, vec2 r) {
-    if (r == 0) {
+    if (r.x == 0 || r.y == 0) {
         return 0;
     }
 
@@ -19,7 +19,7 @@ float CalcEllipseDelta(vec2 p, vec2 r) {
 }
 
 vec4 CalcBorderColor(vec2 p, vec2 roundRadius, vec2 thickness, vec4 borderColor, vec4 color) {
-     // Outer ellipse
+    // Outer ellipse
     float t = CalcEllipseDelta(p, roundRadius);
     // Inner ellipse
     float t2 = CalcEllipseDelta(p, roundRadius - thickness);
